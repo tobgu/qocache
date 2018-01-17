@@ -102,5 +102,5 @@
 			"versionExact": "dev"
 		}
 	],
-	"rootPath": "github.com/tobgu/go-qcache"
+	"rootPath": "github.com/tobgu/qocache"
 }

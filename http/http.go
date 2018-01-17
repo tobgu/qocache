@@ -1,15 +1,17 @@
-package qcache
+package http
 
 import (
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/kniren/gota/dataframe"
+	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qocache/cache"
+	"github.com/tobgu/qocache/query"
 	"log"
 	"net/http"
 )
 
 type application struct {
-	cache Cache
+	cache cache.Cache
 }
 
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
@@ -19,22 +21,22 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Header.Get("Content-Type") {
 	case "text/csv":
-		frame := dataframe.ReadCSV(r.Body)
+		frame := qf.ReadCsv(r.Body)
 		if frame.Err != nil {
-			errorMsg := fmt.Sprintf("Could decode CSV data: %v", frame.Err)
+			errorMsg := fmt.Sprintf("Could not decode CSV data: %v", frame.Err)
 			http.Error(w, errorMsg, http.StatusBadRequest)
 			return
 		}
-		a.cache.Put(key, &QFrame{dataFrame: &frame})
+		a.cache.Put(key, frame)
 		w.WriteHeader(http.StatusCreated)
 	case "application/json":
-		frame := dataframe.ReadJSON(r.Body)
+		frame := qf.ReadJson(r.Body)
 		if frame.Err != nil {
-			errorMsg := fmt.Sprintf("Could decode JSON data: %v", frame.Err)
+			errorMsg := fmt.Sprintf("Could not decode JSON data: %v", frame.Err)
 			http.Error(w, errorMsg, http.StatusBadRequest)
 			return
 		}
-		a.cache.Put(key, &QFrame{dataFrame: &frame})
+		a.cache.Put(key, frame)
 		w.WriteHeader(http.StatusCreated)
 	default:
 		http.Error(w, "Unknown content type", http.StatusBadRequest)
@@ -44,8 +46,8 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["key"]
-	frame := a.cache.Get(key)
-	if frame == nil {
+	frame, ok := a.cache.Get(key)
+	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -53,7 +55,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	var err error = nil
 	r.ParseForm()
 	if qstring := r.Form.Get("q"); qstring != "" {
-		frame, err = frame.Query(qstring)
+		frame, err = query.Query(frame, qstring)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Error executing query: %v", err), http.StatusBadRequest)
 		}
@@ -64,9 +66,9 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 
 	switch accept {
 	case "text/csv":
-		err = frame.dataFrame.WriteCSV(w)
+		err = frame.ToCsv(w)
 	case "application/json":
-		err = frame.dataFrame.WriteJSON(w)
+		err = frame.ToJson(w, "records")
 	default:
 		http.Error(w, "Unknown accept type", http.StatusBadRequest)
 		return
@@ -78,9 +80,12 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 }
 
 func Application() *mux.Router {
-	app := application{cache: newMapCache()}
+	app := application{cache: cache.New()}
 	r := mux.NewRouter()
-	r.HandleFunc("/qcache/dataset/{key}", app.newDataset).Methods("POST")
-	r.HandleFunc("/qcache/dataset/{key}", app.queryDataset).Methods("GET")
+	// Mount on both qcache and qocache for compatibility with qcache
+	for _, root := range []string{"/qcache", "/qocache"} {
+		r.HandleFunc(root+"/dataset/{key}", app.newDataset).Methods("POST")
+		r.HandleFunc(root+"/dataset/{key}", app.queryDataset).Methods("GET")
+	}
 	return r
 }

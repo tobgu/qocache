@@ -1,13 +1,9 @@
 
+test:
+	go test github.com/tobgu/qocache/...
 
-generate:
-	go generate github.com/tobgu/go-qcache/dataframe/...
-
-test: generate
-	go test github.com/tobgu/go-qcache/dataframe
-
-fmt: generate
+fmt:
 	go fmt ./...
 
-vet: generate
+vet:
 	go vet ./...

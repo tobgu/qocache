@@ -1,4 +1,4 @@
 vendor/*/
-go-qcache
+qocache
 *.test
 *.out
