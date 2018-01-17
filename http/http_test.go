@@ -142,6 +142,42 @@ func TestBasicInsertAndGetJson(t *testing.T) {
 	compareTestData(t, output, input)
 }
 
+func TestFilter(t *testing.T) {
+	// TODO: Test error cases
+	cache := newTestCache(t)
+	input := []TestData{{I: 123}, {I: 200}, {I: 223}}
+	output := []TestData{}
+	cases := []struct {
+		filter   string
+		expected []TestData
+	}{
+		{
+			filter:   `[">", "I", 200]`,
+			expected: []TestData{{I: 223}},
+		},
+		{
+			filter:   `["not", [">", "I", 199]]`,
+			expected: []TestData{{I: 123}},
+		},
+		{
+			filter:   `["and", [">", "I", 199], ["or", [">", "I", 199], ["<", "I", 20]]]`,
+			expected: []TestData{{I: 200}, {I: 223}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("Filter %s", tc.filter), func(t *testing.T) {
+			cache.insertJson("FOO", map[string]string{}, input)
+			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"where": %s}`, tc.filter), &output)
+			if rr.Code != http.StatusOK {
+				t.Errorf("Unexpected status code: %v, body: %s", rr.Code, rr.Body.String())
+			}
+
+			compareTestData(t, output, tc.expected)
+		})
+	}
+}
+
 func TestQueryNonExistingKey(t *testing.T) {
 	cache := newTestCache(t)
 	rr := cache.queryJson("FOO", map[string]string{}, "{}", nil)
