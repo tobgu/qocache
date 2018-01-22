@@ -8,6 +8,7 @@ import (
 	"github.com/tobgu/qocache/query"
 	"log"
 	"net/http"
+	"time"
 )
 
 type application struct {
@@ -46,12 +47,12 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["key"]
-	frame, ok := a.cache.Get(key)
+	item, ok := a.cache.Get(key)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-
+	frame := item.(qf.QFrame)
 	var err error = nil
 	r.ParseForm()
 	if qstring := r.Form.Get("q"); qstring != "" {
@@ -80,7 +81,8 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 }
 
 func Application() *mux.Router {
-	app := application{cache: cache.New()}
+	// TODO make this configurable
+	app := application{cache: cache.New(1000000000, 24*time.Hour)}
 	r := mux.NewRouter()
 	// Mount on both qcache and qocache for compatibility with qcache
 	for _, root := range []string{"/qcache", "/qocache"} {
