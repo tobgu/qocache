@@ -44,13 +44,13 @@ type cacheEntry struct {
 	// ~ 88 byte + string length
 }
 
-func newCacheEntry(key string, item CacheItem) cacheEntry {
+func newCacheEntry(key string, item CacheItem, itemSize int) cacheEntry {
 	return cacheEntry{
 		item:       item,
 		createTime: time.Now(),
 		key:        key,
 		// See struct definition for the reasoning behind the below numbers
-		size: 40 + 16 + 8 + 16 + 8 + len(key) + item.ByteSize() + mapEntrySize,
+		size: 40 + 16 + 8 + 16 + 8 + len(key) + itemSize + mapEntrySize,
 	}
 }
 
@@ -59,6 +59,9 @@ func (ce *cacheEntry) hasExpired(maxAge time.Duration) bool {
 }
 
 func (c *LruCache) Put(key string, item CacheItem) error {
+	// Potentially expensive calculation outside protected region
+	itemSize := item.ByteSize()
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -66,7 +69,7 @@ func (c *LruCache) Put(key string, item CacheItem) error {
 		c.remove(elem)
 	}
 
-	newEntry := newCacheEntry(key, item)
+	newEntry := newCacheEntry(key, item, itemSize)
 
 	// Evict old entries if needed to fit new entry in cache
 	for c.currentSize+newEntry.size > c.maxSize {
@@ -168,3 +171,4 @@ func New(maxSize int, maxAge time.Duration) *LruCache {
 // TODO: In addition to byte size make it possible to set a maxCount
 // TODO: Make maximum history size configurable
 // TODO: Move to own repo?
+// TODO: Get rid of ByteSize and force passing byteSize as input to Put instead?
