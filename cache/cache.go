@@ -25,10 +25,9 @@ const mapEntrySize = 16 + 8 + 40
 const maxStatHistory = 1000
 
 type LruCache struct {
-	// TODO: Make thread safety optional?
 	lock            *sync.Mutex              // 8 byte
-	theMap          map[string]*list.Element // mapEntrySize / entry
-	theList         *list.List               // 8 + 40 byte
+	keyMap          map[string]*list.Element // mapEntrySize / entry
+	lruList         *list.List               // 8 + 40 byte
 	maxSize         int                      // 8 byte
 	currentSize     int                      // 8 byte
 	maxAge          time.Duration            // 8 byte
@@ -63,7 +62,7 @@ func (c *LruCache) Put(key string, item CacheItem) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	if elem, ok := c.theMap[key]; ok {
+	if elem, ok := c.keyMap[key]; ok {
 		c.remove(elem)
 	}
 
@@ -71,15 +70,15 @@ func (c *LruCache) Put(key string, item CacheItem) error {
 
 	// Evict old entries if needed to fit new entry in cache
 	for c.currentSize+newEntry.size > c.maxSize {
-		elem := c.theList.Back()
+		elem := c.lruList.Back()
 		removed := c.remove(elem)
 		if !removed {
 			return fmt.Errorf("cannot fit %d bytes in cache", newEntry.size)
 		}
 	}
 
-	elem := c.theList.PushFront(newEntry)
-	c.theMap[key] = elem
+	elem := c.lruList.PushFront(newEntry)
+	c.keyMap[key] = elem
 	c.currentSize += newEntry.size
 	return nil
 }
@@ -88,7 +87,7 @@ func (c *LruCache) Get(key string) (CacheItem, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	elem, ok := c.theMap[key]
+	elem, ok := c.keyMap[key]
 	if !ok {
 		return nil, false
 	}
@@ -99,7 +98,7 @@ func (c *LruCache) Get(key string) (CacheItem, bool) {
 		return nil, false
 	}
 
-	c.theList.PushFront(elem)
+	c.lruList.MoveToFront(elem)
 	return entry.item, true
 }
 
@@ -118,7 +117,7 @@ func (c *LruCache) Stats() CacheStats {
 	stat := CacheStats{
 		TimeToEviction: c.timesToEviction,
 		ByteSize:       c.currentSize,
-		ItemCount:      len(c.theMap),
+		ItemCount:      len(c.keyMap),
 		StatDuration:   lastStat.Sub(c.lastStat),
 	}
 	c.lastStat = lastStat
@@ -139,8 +138,8 @@ func (c *LruCache) remove(elem *list.Element) bool {
 		c.timesToEviction = append(c.timesToEviction, timeToEviction)
 	}
 
-	delete(c.theMap, entry.key)
-	c.theList.Remove(elem)
+	delete(c.keyMap, entry.key)
+	c.lruList.Remove(elem)
 	c.currentSize -= entry.size
 	return true
 }
@@ -156,11 +155,16 @@ func New(maxSize int, maxAge time.Duration) *LruCache {
 
 	return &LruCache{
 		lock:    &sync.Mutex{},
-		theMap:  make(map[string]*list.Element),
-		theList: list.New(),
+		keyMap:  make(map[string]*list.Element),
+		lruList: list.New(),
 		maxSize: maxSize,
 		maxAge:  maxAge,
 		// Rough estimate of the overhead of this structure
 		currentSize: 60,
 		lastStat:    time.Now()}
 }
+
+// TODO: Make thread safety optional?
+// TODO: In addition to byte size make it possible to set a maxCount
+// TODO: Make maximum history size configurable
+// TODO: Move to own repo?

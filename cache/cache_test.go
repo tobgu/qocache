@@ -144,5 +144,36 @@ func TestInsertOnAlreadyExistingKeyOverwritesExistingEntry(t *testing.T) {
 	newStats := c.Stats()
 	assertTrue(t, newStats.ItemCount == 1)
 	assertEquals(t, stats.ByteSize-10, newStats.ByteSize)
+}
+
+func TestLruProperty(t *testing.T) {
+	maxSize := 1000000
+	c := cache.New(maxSize, 0)
+
+	// Can only fit two of these in cache at any time
+	item := testItem{size: 450000}
+
+	c.Put("1", item)
+	c.Put("2", item)
+	c.Put("3", item)
+
+	_, ok := c.Get("1")
+	assertFalse(t, ok)
+	_, ok = c.Get("3")
+	assertTrue(t, ok)
+	_, ok = c.Get("2")
+	assertTrue(t, ok)
+
+	c.Put("4", item)
+
+	// Because of the order of the previous Gets above we expect
+	// "2" to remain in the cache even though it was inserted after
+	// "3" since it was touched last of the two.
+	_, ok = c.Get("3")
+	assertFalse(t, ok)
+	_, ok = c.Get("2")
+	assertTrue(t, ok)
+	_, ok = c.Get("4")
+	assertTrue(t, ok)
 
 }
