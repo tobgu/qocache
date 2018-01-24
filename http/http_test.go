@@ -22,11 +22,11 @@ type TestData struct {
 }
 
 type testCache struct {
-	t   *testing.T
+	t   testing.TB
 	app *mux.Router
 }
 
-func newTestCache(t *testing.T) *testCache {
+func newTestCache(t testing.TB) *testCache {
 	return &testCache{t: t, app: h.Application()}
 }
 

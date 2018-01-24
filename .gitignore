@@ -2,3 +2,4 @@ vendor/*/
 qocache
 *.test
 *.out
+*.prof
