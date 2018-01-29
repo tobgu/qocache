@@ -83,8 +83,8 @@ func benchmarkLargeCache(b *testing.B, buf *bytes.Reader) {
 			for j := int(0.9 * float64(datasetCount)); j < datasetCount; j++ {
 				rr := cache.queryDataset(
 					fmt.Sprintf("FOO%d", j),
-					map[string]string{"Accept": "text/csv"},
-					`{"where":  [">", "Qux", 999000]}`)
+					map[string]string{"Accept": "application/json"},
+					`{"where":  [">", "Qux", 99000]}`)
 
 				if rr.Code != http.StatusOK {
 					b.Errorf("Wrong query status code: got %v want %v", rr.Code, http.StatusOK)
@@ -161,6 +161,51 @@ gc 44 @70.816s 15%: 0.095+3339+0.13 ms clock, 0.19+347/1671/1674+0.26 ms cpu, 22
 gc 45 @78.871s 15%: 0.035+2899+0.30 ms clock, 0.071+140/1441/1464+0.61 ms cpu, 2312->2646->1359 MB, 2697 MB goal, 2 P
 gc 46 @86.628s 14%: 2.8+3081+0.52 ms clock, 5.7+183/1543/1544+1.0 ms cpu, 2339->2679->1365 MB, 2718 MB goal, 2 P
 gc 47 @94.739s 14%: 0.15+2968+14 ms clock, 0.30+189/1479/1495+29 ms cpu, 2349->2694->1370 MB, 2730 MB goal, 2 P
+
+GODEBUG=gctrace=1 go test -bench=BenchmarkStringGcOverhead -run=^$ -cpuprofile=query_string.prof
+------------------------------------------------------------------------------------------------------------
+Refactor string series to use one, big, byte blob backing it:
+- Query times reduced by ~30% (61.5 s -> 44.0 s)
+- Load times reduced by a lot! (30 s -> 4 s)
+
+gc 55 @34.935s 0%: 0.040+1.1+0.13 ms clock, 0.080+0.16/0.047/0.84+0.26 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 56 @36.890s 0%: 0.046+1.1+0.37 ms clock, 0.093+0.12/0.041/0.99+0.75 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 57 @38.844s 0%: 0.041+1.4+0.33 ms clock, 0.082+0.12/0.053/1.0+0.67 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 58 @40.814s 0%: 0.067+1.6+0.25 ms clock, 0.13+0.18/0.17/1.2+0.51 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 59 @42.822s 0%: 0.045+1.6+0.27 ms clock, 0.091+0.18/0.24/1.2+0.54 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 60 @44.802s 0%: 0.053+1.4+0.41 ms clock, 0.10+0.27/0.062/1.1+0.82 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 61 @46.782s 0%: 0.037+1.0+0.040 ms clock, 0.075+0.16/0.099/0.79+0.080 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+goos: linux
+goarch: amd64
+pkg: github.com/tobgu/qocache/http
+BenchmarkStringGcOverhead-2   	       1	43963161062 ns/op	11592054216 B/op	 6300206 allocs/op
+PASS
+ok  	github.com/tobgu/qocache/http	47.863s
+
+go test -bench=BenchmarkStringGcOverhead -run=^$ -cpuprofile=query_string_blob_json_resp.prof
+------------------------------------------------------------------------------------------------------------
+Modified benchmark to start returning JSON of the last 1000 records
+
+BenchmarkStringGcOverhead-2   	       1	93219389896 ns/op	29468321808 B/op	307800583 allocs/op
+PASS
+ok  	github.com/tobgu/qocache/http	96.929s
+
+go test -bench=BenchmarkStringGcOverhead -run=^$ -cpuprofile=query_string_blob_json_resp.prof
+------------------------------------------------------------------------------------------------------------
+Tweaked how JSON is generated to get rid of unnecessary allocations.
+
+gc 81 @72.953s 0%: 0.038+1.2+0.34 ms clock, 0.077+0.19/0.064/0.72+0.68 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 82 @74.576s 0%: 0.037+2.1+0.41 ms clock, 0.075+0.11/0.40/0.85+0.82 ms cpu, 1018->1019->522 MB, 1044 MB goal, 2 P
+gc 83 @76.166s 0%: 0.043+1.2+0.31 ms clock, 0.087+0.39/0.031/1.0+0.62 ms cpu, 1019->1019->522 MB, 1045 MB goal, 2 P
+gc 84 @77.796s 0%: 1.7+0.83+0.13 ms clock, 3.4+0/0.33/2.1+0.26 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+gc 85 @79.407s 0%: 0.046+1.5+0.28 ms clock, 0.092+0.35/0.037/1.1+0.56 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P
+goos: linux
+goarch: amd64
+pkg: github.com/tobgu/qocache/http
+BenchmarkStringGcOverhead-2   	       1	77230962327 ns/op	24673037872 B/op	 8100463 allocs/op
+PASS
+ok  	github.com/tobgu/qocache/http	81.067s
+
 
 Conclusions
 -----------
