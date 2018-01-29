@@ -7,13 +7,9 @@ import (
 	"time"
 )
 
-type CacheItem interface {
-	ByteSize() int
-}
-
 type Cache interface {
-	Put(key string, item CacheItem) error
-	Get(key string) (CacheItem, bool)
+	Put(key string, item interface{}, byteSize int) error
+	Get(key string) (interface{}, bool)
 	Stats() CacheStats
 }
 
@@ -37,14 +33,14 @@ type LruCache struct {
 
 type cacheEntry struct {
 	// 40 byte overhead for the Element
-	item       CacheItem // 16 byte
-	createTime time.Time // 8 byte
-	key        string    // 16 byte + string length
-	size       int       // 8 byte
+	item       interface{} // 16 byte
+	createTime time.Time   // 8 byte
+	key        string      // 16 byte + string length
+	size       int         // 8 byte
 	// ~ 88 byte + string length
 }
 
-func newCacheEntry(key string, item CacheItem, itemSize int) cacheEntry {
+func newCacheEntry(key string, item interface{}, itemSize int) cacheEntry {
 	return cacheEntry{
 		item:       item,
 		createTime: time.Now(),
@@ -58,10 +54,7 @@ func (ce *cacheEntry) hasExpired(maxAge time.Duration) bool {
 	return maxAge > 0 && time.Now().Sub(ce.createTime) > maxAge
 }
 
-func (c *LruCache) Put(key string, item CacheItem) error {
-	// Potentially expensive calculation outside protected region
-	itemSize := item.ByteSize()
-
+func (c *LruCache) Put(key string, item interface{}, byteSize int) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -69,7 +62,7 @@ func (c *LruCache) Put(key string, item CacheItem) error {
 		c.remove(elem)
 	}
 
-	newEntry := newCacheEntry(key, item, itemSize)
+	newEntry := newCacheEntry(key, item, byteSize)
 
 	// Evict old entries if needed to fit new entry in cache
 	for c.currentSize+newEntry.size > c.maxSize {
@@ -86,7 +79,7 @@ func (c *LruCache) Put(key string, item CacheItem) error {
 	return nil
 }
 
-func (c *LruCache) Get(key string) (CacheItem, bool) {
+func (c *LruCache) Get(key string) (interface{}, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -171,4 +164,3 @@ func New(maxSize int, maxAge time.Duration) *LruCache {
 // TODO: In addition to byte size make it possible to set a maxCount
 // TODO: Make maximum history size configurable
 // TODO: Move to own repo?
-// TODO: Get rid of ByteSize and force passing byteSize as input to Put instead?

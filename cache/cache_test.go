@@ -40,10 +40,10 @@ func TestBasicPutGet(t *testing.T) {
 	in1 := testItem{size: 1}
 	in2 := testItem{size: 2}
 	c := cache.New(100, 0)
-	err := c.Put("1", in1)
+	err := c.Put("1", in1, in1.ByteSize())
 	assertTrue(t, err == nil)
 
-	c.Put("2", in2)
+	c.Put("2", in2, in2.ByteSize())
 	assertTrue(t, err == nil)
 
 	out1, ok := c.Get("1")
@@ -65,7 +65,7 @@ func TestMaxSizeIsRespected(t *testing.T) {
 	c := cache.New(maxSize, 0)
 
 	for i := 0; i < 100; i++ {
-		err := c.Put(strconv.Itoa(i), item)
+		err := c.Put(strconv.Itoa(i), item, item.ByteSize())
 		assertTrue(t, err == nil)
 	}
 
@@ -93,11 +93,11 @@ func TestElementCannotBeInsertedLargerThanMaxSize(t *testing.T) {
 	item := testItem{size: 100000}
 	c := cache.New(maxSize, 0)
 
-	err := c.Put("1", item)
+	err := c.Put("1", item, item.ByteSize())
 	assertTrue(t, err == nil)
 
 	largeItem := testItem{size: maxSize}
-	err = c.Put("1", largeItem)
+	err = c.Put("1", largeItem, largeItem.ByteSize())
 	assertTrue(t, err != nil)
 }
 
@@ -107,7 +107,7 @@ func TestMaxAgeIsRespected(t *testing.T) {
 	c := cache.New(maxSize, maxAge)
 	baseStats := c.Stats()
 
-	err := c.Put("1", testItem{size: 100})
+	err := c.Put("1", testItem{}, 100)
 	assertTrue(t, err == nil)
 
 	stats := c.Stats()
@@ -129,11 +129,11 @@ func TestInsertOnAlreadyExistingKeyOverwritesExistingEntry(t *testing.T) {
 	maxSize := 1000000
 	c := cache.New(maxSize, 0)
 
-	err := c.Put("1", testItem{size: 100})
+	err := c.Put("1", testItem{size: 100}, 100)
 	assertTrue(t, err == nil)
 	stats := c.Stats()
 
-	err = c.Put("1", testItem{size: 90})
+	err = c.Put("1", testItem{size: 90}, 90)
 	assertTrue(t, err == nil)
 
 	// Mew item returned and bookkeeping data updated
@@ -153,9 +153,9 @@ func TestLruProperty(t *testing.T) {
 	// Can only fit two of these in cache at any time
 	item := testItem{size: 450000}
 
-	c.Put("1", item)
-	c.Put("2", item)
-	c.Put("3", item)
+	c.Put("1", item, item.ByteSize())
+	c.Put("2", item, item.ByteSize())
+	c.Put("3", item, item.ByteSize())
 
 	_, ok := c.Get("1")
 	assertFalse(t, ok)
@@ -164,7 +164,7 @@ func TestLruProperty(t *testing.T) {
 	_, ok = c.Get("2")
 	assertTrue(t, ok)
 
-	c.Put("4", item)
+	c.Put("4", item, item.ByteSize())
 
 	// Because of the order of the previous Gets above we expect
 	// "2" to remain in the cache even though it was inserted after

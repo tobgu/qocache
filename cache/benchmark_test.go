@@ -16,7 +16,7 @@ func BenchmarkCachePut(b *testing.B) {
 		c := cache.New(maxSize, 0)
 
 		for i := 0; i < 10000; i++ {
-			c.Put(strconv.Itoa(i), item)
+			c.Put(strconv.Itoa(i), item, item.ByteSize())
 		}
 
 		stats := c.Stats()
@@ -32,7 +32,7 @@ func BenchmarkCacheGet(b *testing.B) {
 
 	item := testItem{size: 10}
 	for i := 0; i < 10000; i++ {
-		c.Put(strconv.Itoa(i), item)
+		c.Put(strconv.Itoa(i), item, item.ByteSize())
 	}
 
 	b.ReportAllocs()

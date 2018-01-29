@@ -28,7 +28,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMsg, http.StatusBadRequest)
 			return
 		}
-		a.cache.Put(key, frame)
+		a.cache.Put(key, frame, frame.ByteSize())
 		w.WriteHeader(http.StatusCreated)
 	case "application/json":
 		frame := qf.ReadJson(r.Body)
@@ -37,7 +37,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMsg, http.StatusBadRequest)
 			return
 		}
-		a.cache.Put(key, frame)
+		a.cache.Put(key, frame, frame.ByteSize())
 		w.WriteHeader(http.StatusCreated)
 	default:
 		http.Error(w, "Unknown content type", http.StatusBadRequest)
