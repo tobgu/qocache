@@ -206,8 +206,35 @@ func TestQueryWithProjectionUnknownColumnError(t *testing.T) {
 	}
 }
 
+func TestQueryWithOrderBy(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "A", I: 2}, {S: "A", I: 1}, {S: "B", I: 3}}
+
+	cases := []struct {
+		orderBy  string
+		expected []TestData
+	}{
+		{
+			orderBy:  `["S", "I"]`,
+			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "B", I: 3}},
+		},
+		{
+			orderBy:  `["-S", "I"]`,
+			expected: []TestData{{S: "B", I: 3}, {S: "A", I: 1}, {S: "A", I: 2}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("Order by %s", tc.orderBy), func(t *testing.T) {
+			output := []TestData{}
+			cache.insertJson("FOO", map[string]string{}, input)
+			cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"order_by": %s}`, tc.orderBy), &output)
+			compareTestData(t, output, tc.expected)
+		})
+	}
+}
+
 // TODO
-// - Sorting
 // - Slicing
 // - Aggregation/group by
 // - Types and enums

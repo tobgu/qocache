@@ -5,6 +5,7 @@ import (
 	"fmt"
 	qf "github.com/tobgu/qframe"
 	"github.com/tobgu/qframe/filter"
+	"strings"
 )
 
 // TODO: It is possible that most of the functionality here would actually fit better in the QFrame
@@ -107,24 +108,47 @@ func unMarshalSelectClause(input interface{}) (qf.Select, error) {
 	return qf.Select(inputSlice), nil
 }
 
+func unMarshalOrderByClause(input []string) []qf.Order {
+	result := make([]qf.Order, len(input))
+	for i, s := range input {
+		if strings.HasPrefix(s, "-") {
+			result[i] = qf.Order{Column: s[1:], Reverse: true}
+		} else {
+			result[i] = qf.Order{Column: s, Reverse: false}
+		}
+	}
+
+	return result
+}
+
+func New(qString string) (query, error) {
+	q := query{}
+	err := json.Unmarshal([]byte(qString), &q)
+	return q, err
+}
+
 func Query(f qf.QFrame, qString string) (qf.QFrame, error) {
-	query := query{}
-	err := json.Unmarshal([]byte(qString), &query)
+	q, err := New(qString)
 	if err != nil {
 		return qf.QFrame{}, err
 	}
 
-	filterClause, err := unMarshalFilterClause(query.Where)
+	return q.Query(f)
+}
+
+func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
+	filterClause, err := unMarshalFilterClause(q.Where)
 	if err != nil {
 		return f, err
 	}
 
-	selectClause, err := unMarshalSelectClause(query.Select)
+	selectClause, err := unMarshalSelectClause(q.Select)
 	if err != nil {
 		return f, err
 	}
 
 	newF := filterClause.Filter(f)
+	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
 	return newF, newF.Err
 }
