@@ -234,8 +234,32 @@ func TestQueryWithOrderBy(t *testing.T) {
 	}
 }
 
+func TestQueryWithSlice(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "A"}, {S: "B"}, {S: "C"}}
+
+	cases := []struct {
+		offset   int
+		limit    int
+		expected []TestData
+	}{
+		{offset: 0, limit: 0, expected: []TestData{{S: "A"}, {S: "B"}, {S: "C"}}},
+		{offset: 0, limit: 5, expected: []TestData{{S: "A"}, {S: "B"}, {S: "C"}}},
+		{offset: 1, limit: 0, expected: []TestData{{S: "B"}, {S: "C"}}},
+		{offset: 0, limit: 2, expected: []TestData{{S: "A"}, {S: "B"}}},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("Slice %d %d", tc.offset, tc.limit), func(t *testing.T) {
+			output := []TestData{}
+			cache.insertJson("FOO", map[string]string{}, input)
+			cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), &output)
+			compareTestData(t, output, tc.expected)
+		})
+	}
+}
+
 // TODO
-// - Slicing
 // - Aggregation/group by
 // - Types and enums
 // - Meta data response headers

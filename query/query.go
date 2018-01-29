@@ -136,6 +136,23 @@ func Query(f qf.QFrame, qString string) (qf.QFrame, error) {
 	return q.Query(f)
 }
 
+func intMin(x, y int) int {
+	if x < y {
+		return x
+	}
+
+	return y
+}
+
+func (q query) slice(f qf.QFrame) qf.QFrame {
+	stop := f.Len()
+	if q.Limit > 0 {
+		stop = intMin(stop, q.Offset+q.Limit)
+	}
+
+	return f.Slice(q.Offset, stop)
+}
+
 func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 	filterClause, err := unMarshalFilterClause(q.Where)
 	if err != nil {
@@ -150,5 +167,8 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 	newF := filterClause.Filter(f)
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
+
+	// TODO: Add info about original frame length
+	newF = q.slice(newF)
 	return newF, newF.Err
 }
