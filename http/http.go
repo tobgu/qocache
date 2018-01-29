@@ -58,7 +58,8 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	if qstring := r.Form.Get("q"); qstring != "" {
 		frame, err = query.Query(frame, qstring)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error executing query: %v", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("Error executing query: %s", err.Error()), http.StatusBadRequest)
+			return
 		}
 	}
 
@@ -76,6 +77,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		// TODO: Investigate which errors that should panic
 		log.Fatalf("Failed writing JSON: %v", err)
 	}
 }

@@ -7,6 +7,10 @@ import (
 	"github.com/tobgu/qframe/filter"
 )
 
+// TODO: It is possible that most of the functionality here would actually fit better in the QFrame
+//       Or even in an own, query, repository together with some of the query related functionality
+//       in QFrame.
+
 type query struct {
 	Select   interface{} `json:"select,omitempty"`
 	Where    interface{} `json:"where,omitempty"`
@@ -90,6 +94,19 @@ func unMarshalFilterClause(input interface{}) (qf.Clause, error) {
 	return c, c.Err()
 }
 
+func unMarshalSelectClause(input interface{}) (qf.Select, error) {
+	if input == nil {
+		return qf.Select(nil), nil
+	}
+
+	inputSlice, ok := input.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("malformed select, must be a list, was: %v", inputSlice)
+	}
+
+	return qf.Select(inputSlice), nil
+}
+
 func Query(f qf.QFrame, qString string) (qf.QFrame, error) {
 	query := query{}
 	err := json.Unmarshal([]byte(qString), &query)
@@ -97,20 +114,17 @@ func Query(f qf.QFrame, qString string) (qf.QFrame, error) {
 		return qf.QFrame{}, err
 	}
 
-	/* TODO
-	- Filter
-	- Group and aggregate
-	- Distinct
-	- Project
-	- Sort
-	- Slice/paginate
-	*/
-
-	c, err := unMarshalFilterClause(query.Where)
+	filterClause, err := unMarshalFilterClause(query.Where)
 	if err != nil {
 		return f, err
 	}
 
-	newF := c.Filter(f)
+	selectClause, err := unMarshalSelectClause(query.Select)
+	if err != nil {
+		return f, err
+	}
+
+	newF := filterClause.Filter(f)
+	newF = selectClause.Select(newF)
 	return newF, newF.Err
 }

@@ -186,24 +186,34 @@ func TestQueryNonExistingKey(t *testing.T) {
 	}
 }
 
-func xTestBasicInsertAndQueryWithProjection(t *testing.T) {
+func TestBasicInsertAndQueryWithProjection(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
 	output := []TestData{}
 	cache.insertJson("FOO", map[string]string{}, input)
-	cache.queryJson("FOO", map[string]string{}, "{}", &output)
+	cache.queryJson("FOO", map[string]string{}, `{"select": ["S"]}`, &output)
 	compareTestData(t, output, []TestData{{S: "Foo"}})
 }
 
+func TestQueryWithProjectionUnknownColumnError(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
+	output := []TestData{}
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"select": ["NONEXISTING"]}`, &output)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Unexpected status code: %v", rr.Code)
+	}
+}
+
 // TODO
-// - Projection
 // - Sorting
 // - Slicing
 // - Aggregation/group by
 // - Types and enums
 // - Meta data response headers
 // - Compression
-// - Advanced projection, applying functions, creating new columns, aliasing
+// - Advanced select, applying functions, creating new columns, aliasing
 // - Standin columns
 // - Sub queries
 // - Statistics
