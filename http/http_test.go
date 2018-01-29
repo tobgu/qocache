@@ -194,3 +194,16 @@ func xTestBasicInsertAndQueryWithProjection(t *testing.T) {
 	cache.queryJson("FOO", map[string]string{}, "{}", &output)
 	compareTestData(t, output, []TestData{{S: "Foo"}})
 }
+
+// TODO
+// - Projection
+// - Sorting
+// - Slicing
+// - Aggregation/group by
+// - Types and enums
+// - Meta data response headers
+// - Compression
+// - Advanced projection, applying functions, creating new columns, aliasing
+// - Standin columns
+// - Sub queries
+// - Statistics
