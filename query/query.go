@@ -165,6 +165,7 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 	}
 
 	newF := filterClause.Filter(f)
+	newF = newF.Distinct(q.Distinct...)
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
 

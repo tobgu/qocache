@@ -259,6 +259,21 @@ func TestQueryWithSlice(t *testing.T) {
 	}
 }
 
+func TestQueryWithDistinct(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "A", I: 2}, {S: "C", I: 1}}
+	expected := []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}
+	output := []TestData{}
+
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"distinct": ["S", "I"]}`, &output)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code: %v", rr.Code)
+	}
+
+	compareTestData(t, output, expected)
+}
+
 // TODO
 // - Aggregation/group by
 // - Types and enums
