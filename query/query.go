@@ -95,17 +95,116 @@ func unMarshalFilterClause(input interface{}) (qf.Clause, error) {
 	return c, c.Err()
 }
 
-func unMarshalSelectClause(input interface{}) (qf.Select, error) {
+type selectClause struct {
+	columns []string
+	aliases []Alias
+	aggregations
+}
+
+func (c selectClause) Select(f qf.QFrame) qf.QFrame {
+	for _, a := range c.aliases {
+		f = a.execute(f)
+	}
+
+	if len(c.columns) > 0 {
+		return f.Select(c.columns...)
+	}
+
+	return f
+}
+
+type Alias interface {
+	execute(f qf.QFrame) qf.QFrame
+	dstCol() string
+}
+
+type simpleAlias struct {
+	dstCol string
+	srcCol string
+}
+
+// TODO: How should this be executed?
+type complexAlias struct {
+	dstCol string
+	expr   []interface{}
+}
+
+type aggregations []aggregation
+
+type aggregation struct {
+	fn  string
+	col string
+}
+
+func (as aggregations) Execute(grouper qf.Grouper) qf.QFrame {
+	args := make([]string, 0, 2*len(as))
+	for _, a := range as {
+		args = append(args, a.fn)
+		args = append(args, a.col)
+	}
+
+	return grouper.Aggregate(args...)
+}
+
+func unMarshalSelectClause(input interface{}) (selectClause, error) {
+	emptySelect := selectClause{}
 	if input == nil {
-		return qf.Select(nil), nil
+		return emptySelect, nil
 	}
 
 	inputSlice, ok := input.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("malformed select, must be a list, was: %v", inputSlice)
+		return emptySelect, fmt.Errorf("malformed select, must be a list, was: %v", inputSlice)
 	}
 
-	return qf.Select(inputSlice), nil
+	columns := make([]string, 0, len(inputSlice))
+	aggregations := make(aggregations, 0)
+	aliases := make([]Alias, 0)
+	for _, part := range inputSlice {
+		switch p := part.(type) {
+		case []interface{}:
+			if len(p) < 2 {
+				return emptySelect, fmt.Errorf("malformed expression in select, too short: %v", p)
+			}
+
+			op, ok := p[0].(string)
+			if !ok {
+				return emptySelect, fmt.Errorf("malformed expression in select, expected a string in first position: %v", p)
+			}
+
+			if op == "=" {
+				// Alias expression
+				a, err := createAlias(p)
+				if err != nil {
+					return emptySelect, err
+				}
+				aliases = append(aliases, a)
+			} else {
+				// Assume aggregation expression
+				a, err := createAggregation(p)
+				if err != nil {
+					return emptySelect, err
+				}
+				aggregations = append(aggregations, a)
+			}
+		case string:
+			columns = append(columns, p)
+		default:
+			return selectClause{}, fmt.Errorf("unknown expression in select: %v", p)
+		}
+	}
+
+	return selectClause{columns: columns, aggregations: aggregations, aliases: aliases}, nil
+}
+
+func createAlias(expr []interface{}) (Alias, error) {
+	// TODO
+	return nil, nil
+}
+
+func createAggregation(expr []interface{}) (aggregation, error) {
+	// TODO
+	return aggregation{}, nil
 }
 
 func unMarshalOrderByClause(input []string) []qf.Order {
@@ -121,14 +220,14 @@ func unMarshalOrderByClause(input []string) []qf.Order {
 	return result
 }
 
-func New(qString string) (query, error) {
+func newQuery(qString string) (query, error) {
 	q := query{}
 	err := json.Unmarshal([]byte(qString), &q)
 	return q, err
 }
 
 func Query(f qf.QFrame, qString string) (qf.QFrame, error) {
-	q, err := New(qString)
+	q, err := newQuery(qString)
 	if err != nil {
 		return qf.QFrame{}, err
 	}
@@ -154,6 +253,13 @@ func (q query) slice(f qf.QFrame) qf.QFrame {
 }
 
 func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
+	if len(q.GroupBy) > 0 && len(q.Distinct) > 0 {
+		// Don'ẗ really know what this combination would mean at the moment
+		// therefor it is currently banned.
+		// If a good use case comes up this may be reconsidered.
+		return f, fmt.Errorf("cannot combine group by and distinct in the same query")
+	}
+
 	filterClause, err := unMarshalFilterClause(q.Where)
 	if err != nil {
 		return f, err
@@ -165,11 +271,16 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 	}
 
 	newF := filterClause.Filter(f)
+	if len(q.GroupBy) > 0 || len(selectClause.aggregations) > 0 {
+		grouper := newF.GroupBy(q.GroupBy...)
+		newF = selectClause.aggregations.Execute(grouper)
+	}
+
 	newF = newF.Distinct(q.Distinct...)
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
 
-	// TODO: Add info about original frame length
+	// TODO: Add info about frame length before slicing
 	newF = q.slice(newF)
 	return newF, newF.Err
 }

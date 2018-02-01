@@ -274,6 +274,22 @@ func TestQueryWithDistinct(t *testing.T) {
 	compareTestData(t, output, expected)
 }
 
+func TestQueryWithGroupByWithoutAggregation(t *testing.T) {
+	// The result in this case corresponds to a distinct over the selected columns
+	cache := newTestCache(t)
+	input := []TestData{{S: "C", I: 1}, {S: "A", I: 2}, {S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}
+	expected := []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}
+	output := []TestData{}
+
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"group_by": ["S", "I"]}`, &output)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+	}
+
+	compareTestData(t, output, expected)
+}
+
 // TODO
 // - Aggregation/group by
 // - Types and enums
