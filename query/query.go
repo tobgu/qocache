@@ -253,6 +253,14 @@ func (q query) slice(f qf.QFrame) qf.QFrame {
 }
 
 func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
+	var err error
+	if q.From != nil {
+		f, err = q.From.Query(f)
+		if err != nil {
+			return f, err
+		}
+	}
+
 	if len(q.GroupBy) > 0 && len(q.Distinct) > 0 {
 		// Don'ẗ really know what this combination would mean at the moment
 		// therefor it is currently banned.

@@ -290,6 +290,21 @@ func TestQueryWithGroupByWithoutAggregation(t *testing.T) {
 	compareTestData(t, output, expected)
 }
 
+func TestQueryWithFrom(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{I: 1}, {I: 2}, {I: 3}}
+	expected := []TestData{{I: 2}}
+	output := []TestData{}
+
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`, &output)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+	}
+
+	compareTestData(t, output, expected)
+}
+
 // TODO
 // - Aggregation/group by
 // - Types and enums
