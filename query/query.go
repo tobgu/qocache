@@ -115,12 +115,20 @@ func (c selectClause) Select(f qf.QFrame) qf.QFrame {
 
 type Alias interface {
 	execute(f qf.QFrame) qf.QFrame
-	dstCol() string
+	column() string
 }
 
 type simpleAlias struct {
 	dstCol string
 	srcCol string
+}
+
+func (a simpleAlias) execute(f qf.QFrame) qf.QFrame {
+	return f.Apply("", a.dstCol, a.srcCol)
+}
+
+func (a simpleAlias) column() string {
+	return a.dstCol
 }
 
 // TODO: How should this be executed?
@@ -174,11 +182,12 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 
 			if op == "=" {
 				// Alias expression
-				a, err := createAlias(p)
+				a, err := createAlias(p[1:])
 				if err != nil {
 					return emptySelect, err
 				}
 				aliases = append(aliases, a)
+				columns = append(columns, a.column())
 			} else {
 				// Assume aggregation expression
 				a, err := createAggregation(p)
@@ -198,8 +207,23 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 }
 
 func createAlias(expr []interface{}) (Alias, error) {
-	// TODO
-	return nil, nil
+	if len(expr) != 2 {
+		return nil, fmt.Errorf("invalid alias argument length, expected destination column and src expression, was: %v", expr)
+	}
+
+	dstCol, ok := expr[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid alias destination column, was: %v", expr[0])
+	}
+
+	srcCol, ok := expr[1].(string)
+
+	// TODO: Handle complex aliases
+	if !ok {
+		return nil, fmt.Errorf("invalid alias source column, was: %v", expr[1])
+	}
+
+	return simpleAlias{dstCol: dstCol, srcCol: srcCol}, nil
 }
 
 func createAggregation(expr []interface{}) (aggregation, error) {

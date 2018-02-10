@@ -15,10 +15,11 @@ import (
 )
 
 type TestData struct {
-	S string
-	I int
-	F float64
-	B bool
+	S  string
+	I  int
+	F  float64
+	B  bool
+	I2 int
 }
 
 type testCache struct {
@@ -95,6 +96,7 @@ func (c *testCache) queryJson(key string, headers map[string]string, q string, o
 
 func compareTestData(t *testing.T, actual, expected []TestData) {
 	if len(actual) == len(expected) {
+		// TODO: Shouldn't this be a loop comparing all elements?
 		if actual[0] != expected[0] {
 			t.Errorf("Wrong record content: got %v want %v", actual, expected)
 		}
@@ -298,6 +300,21 @@ func TestQueryWithFrom(t *testing.T) {
 
 	cache.insertJson("FOO", map[string]string{}, input)
 	rr := cache.queryJson("FOO", map[string]string{}, `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`, &output)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+	}
+
+	compareTestData(t, output, expected)
+}
+
+func TestQueryWithSimpleAlias(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{I: 1}, {I: 2}}
+	expected := []TestData{{I: 1, I2: 1}, {I: 2, I2: 2}}
+	output := []TestData{}
+
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"select": ["I", ["=", "I2", "I"]]}`, &output)
 	if rr.Code != http.StatusOK {
 		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
 	}
