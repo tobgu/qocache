@@ -195,6 +195,7 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 					return emptySelect, err
 				}
 				aggregations = append(aggregations, a)
+				columns = append(columns, a.col)
 			}
 		case string:
 			columns = append(columns, p)
@@ -227,8 +228,21 @@ func createAlias(expr []interface{}) (Alias, error) {
 }
 
 func createAggregation(expr []interface{}) (aggregation, error) {
-	// TODO
-	return aggregation{}, nil
+	if len(expr) != 2 {
+		return aggregation{}, fmt.Errorf("invalid aggregation expression, expected length 2, was: %v", expr)
+	}
+
+	aggFn, ok := expr[0].(string)
+	if !ok {
+		return aggregation{}, fmt.Errorf("aggregation function name must be a string, was: %v", expr[0])
+	}
+
+	aggCol, ok := expr[1].(string)
+	if !ok {
+		return aggregation{}, fmt.Errorf("aggregation column name must be a string, was: %v", expr[1])
+	}
+
+	return aggregation{fn: aggFn, col: aggCol}, nil
 }
 
 func unMarshalOrderByClause(input []string) []qf.Order {

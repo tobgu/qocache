@@ -292,6 +292,36 @@ func TestQueryWithGroupByWithoutAggregation(t *testing.T) {
 	compareTestData(t, output, expected)
 }
 
+func TestQueryWithGroupByAndAggregation(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}}
+	expected := []TestData{{S: "A", I: 5}, {S: "C", I: 1}}
+	output := []TestData{}
+
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"select": ["S", ["sum", "I"]], "group_by": ["S"]}`, &output)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+	}
+
+	compareTestData(t, output, expected)
+}
+
+func TestQueryWithAggregationWithoutGroupBy(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}}
+	expected := []TestData{{I: 6}}
+	output := []TestData{}
+
+	cache.insertJson("FOO", map[string]string{}, input)
+	rr := cache.queryJson("FOO", map[string]string{}, `{"select": [["sum", "I"]]}`, &output)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+	}
+
+	compareTestData(t, output, expected)
+}
+
 func TestQueryWithFrom(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{I: 1}, {I: 2}, {I: 3}}
