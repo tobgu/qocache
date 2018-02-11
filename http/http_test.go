@@ -135,15 +135,6 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	compareTestData(t, output, input)
 }
 
-func TestBasicInsertAndGetJson(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
-	output := []TestData{}
-	cache.insertJson("FOO", map[string]string{}, input)
-	cache.queryJson("FOO", map[string]string{}, "{}", &output)
-	compareTestData(t, output, input)
-}
-
 func TestFilter(t *testing.T) {
 	// TODO: Test error cases
 	cache := newTestCache(t)
@@ -184,26 +175,6 @@ func TestQueryNonExistingKey(t *testing.T) {
 	cache := newTestCache(t)
 	rr := cache.queryJson("FOO", map[string]string{}, "{}", nil)
 	if rr.Code != http.StatusNotFound {
-		t.Errorf("Unexpected status code: %v", rr.Code)
-	}
-}
-
-func TestBasicInsertAndQueryWithProjection(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
-	output := []TestData{}
-	cache.insertJson("FOO", map[string]string{}, input)
-	cache.queryJson("FOO", map[string]string{}, `{"select": ["S"]}`, &output)
-	compareTestData(t, output, []TestData{{S: "Foo"}})
-}
-
-func TestQueryWithProjectionUnknownColumnError(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
-	output := []TestData{}
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"select": ["NONEXISTING"]}`, &output)
-	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Unexpected status code: %v", rr.Code)
 	}
 }
@@ -261,103 +232,98 @@ func TestQueryWithSlice(t *testing.T) {
 	}
 }
 
-func TestQueryWithDistinct(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "A", I: 2}, {S: "C", I: 1}}
-	expected := []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}
-	output := []TestData{}
-
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"distinct": ["S", "I"]}`, &output)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code: %v", rr.Code)
+func TestQuery(t *testing.T) {
+	// Various basic query test cases following the same pattern
+	cases := []struct {
+		name         string
+		input        []TestData
+		query        string
+		expected     []TestData
+		expectedCode int
+	}{
+		{
+			name:     "Basic insert and query with empty query",
+			input:    []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+			query:    `{}`,
+			expected: []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+		},
+		{
+			name:     "Basic project",
+			input:    []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+			query:    `{"select": ["S"]}`,
+			expected: []TestData{{S: "Foo"}},
+		},
+		{
+			name:         "Projection with unknown column",
+			input:        []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+			query:        `{"select": ["NONEXISTING"]}`,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:     "Distinct",
+			input:    []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "A", I: 2}, {S: "C", I: 1}},
+			query:    `{"distinct": ["S", "I"]}`,
+			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
+		},
+		{
+			name:     "Group by without aggregation",
+			input:    []TestData{{S: "C", I: 1}, {S: "A", I: 2}, {S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
+			query:    `{"group_by": ["S", "I"]}`,
+			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
+		},
+		{
+			name:     "Aggregation with group by",
+			input:    []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}},
+			query:    `{"select": ["S", ["sum", "I"]], "group_by": ["S"]}`,
+			expected: []TestData{{S: "A", I: 5}, {S: "C", I: 1}},
+		},
+		{
+			name:     "Aggregation without group by",
+			input:    []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}},
+			query:    `{"select": [["sum", "I"]]}`,
+			expected: []TestData{{I: 6}},
+		},
+		{
+			name:     "Simple alias",
+			input:    []TestData{{I: 1}, {I: 2}},
+			query:    `{"select": ["I", ["=", "I2", "I"]]}`,
+			expected: []TestData{{I: 1, I2: 1}, {I: 2, I2: 2}}},
+		{
+			name:     "Sub query",
+			input:    []TestData{{I: 1}, {I: 2}, {I: 3}},
+			query:    `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`,
+			expected: []TestData{{I: 2}},
+		},
 	}
 
-	compareTestData(t, output, expected)
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := newTestCache(t)
+			cache.insertJson("FOO", map[string]string{}, tc.input)
+			output := make([]TestData, 0)
+			rr := cache.queryJson("FOO", map[string]string{}, tc.query, &output)
 
-func TestQueryWithGroupByWithoutAggregation(t *testing.T) {
-	// The result in this case corresponds to a distinct over the selected columns
-	cache := newTestCache(t)
-	input := []TestData{{S: "C", I: 1}, {S: "A", I: 2}, {S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}
-	expected := []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}
-	output := []TestData{}
+			// Assume OK if code left out from test definition
+			if tc.expectedCode == 0 {
+				tc.expectedCode = http.StatusOK
+			}
 
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"group_by": ["S", "I"]}`, &output)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+			if rr.Code != tc.expectedCode {
+				t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
+			}
+
+			if tc.expectedCode == http.StatusOK {
+				compareTestData(t, output, tc.expected)
+			}
+		})
 	}
-
-	compareTestData(t, output, expected)
-}
-
-func TestQueryWithGroupByAndAggregation(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}}
-	expected := []TestData{{S: "A", I: 5}, {S: "C", I: 1}}
-	output := []TestData{}
-
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"select": ["S", ["sum", "I"]], "group_by": ["S"]}`, &output)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
-	}
-
-	compareTestData(t, output, expected)
-}
-
-func TestQueryWithAggregationWithoutGroupBy(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}}
-	expected := []TestData{{I: 6}}
-	output := []TestData{}
-
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"select": [["sum", "I"]]}`, &output)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
-	}
-
-	compareTestData(t, output, expected)
-}
-
-func TestQueryWithFrom(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{I: 1}, {I: 2}, {I: 3}}
-	expected := []TestData{{I: 2}}
-	output := []TestData{}
-
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`, &output)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
-	}
-
-	compareTestData(t, output, expected)
-}
-
-func TestQueryWithSimpleAlias(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{I: 1}, {I: 2}}
-	expected := []TestData{{I: 1, I2: 1}, {I: 2, I2: 2}}
-	output := []TestData{}
-
-	cache.insertJson("FOO", map[string]string{}, input)
-	rr := cache.queryJson("FOO", map[string]string{}, `{"select": ["I", ["=", "I2", "I"]]}`, &output)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code: %v, %s", rr.Code, rr.Body.String())
-	}
-
-	compareTestData(t, output, expected)
 }
 
 // TODO
-// - Aggregation/group by
 // - Types and enums
 // - Meta data response headers
 // - Compression
-// - Advanced select, applying functions, creating new columns, aliasing
+// - Advanced select, applying functions in aliases
 // - Standin columns
-// - Sub queries
 // - Statistics
+// - In filter with sub query
