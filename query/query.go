@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qframe/aggregation"
 	"github.com/tobgu/qframe/filter"
 	"strings"
 )
@@ -137,21 +138,10 @@ type complexAlias struct {
 	expr   []interface{}
 }
 
-type aggregations []aggregation
-
-type aggregation struct {
-	fn  string
-	col string
-}
+type aggregations []aggregation.Aggregation
 
 func (as aggregations) Execute(grouper qf.Grouper) qf.QFrame {
-	args := make([]string, 0, 2*len(as))
-	for _, a := range as {
-		args = append(args, a.fn)
-		args = append(args, a.col)
-	}
-
-	return grouper.Aggregate(args...)
+	return grouper.Aggregate(as...)
 }
 
 func unMarshalSelectClause(input interface{}) (selectClause, error) {
@@ -195,7 +185,7 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 					return emptySelect, err
 				}
 				aggregations = append(aggregations, a)
-				columns = append(columns, a.col)
+				columns = append(columns, a.Column)
 			}
 		case string:
 			columns = append(columns, p)
@@ -227,22 +217,23 @@ func createAlias(expr []interface{}) (Alias, error) {
 	return simpleAlias{dstCol: dstCol, srcCol: srcCol}, nil
 }
 
-func createAggregation(expr []interface{}) (aggregation, error) {
+func createAggregation(expr []interface{}) (aggregation.Aggregation, error) {
+	noAgg := aggregation.Aggregation{}
 	if len(expr) != 2 {
-		return aggregation{}, fmt.Errorf("invalid aggregation expression, expected length 2, was: %v", expr)
+		return noAgg, fmt.Errorf("invalid aggregation expression, expected length 2, was: %v", expr)
 	}
 
 	aggFn, ok := expr[0].(string)
 	if !ok {
-		return aggregation{}, fmt.Errorf("aggregation function name must be a string, was: %v", expr[0])
+		return noAgg, fmt.Errorf("aggregation function name must be a string, was: %v", expr[0])
 	}
 
 	aggCol, ok := expr[1].(string)
 	if !ok {
-		return aggregation{}, fmt.Errorf("aggregation column name must be a string, was: %v", expr[1])
+		return noAgg, fmt.Errorf("aggregation column name must be a string, was: %v", expr[1])
 	}
 
-	return aggregation{fn: aggFn, col: aggCol}, nil
+	return aggregation.New(aggFn, aggCol), nil
 }
 
 func unMarshalOrderByClause(input []string) []qf.Order {
