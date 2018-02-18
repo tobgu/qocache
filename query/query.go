@@ -125,7 +125,7 @@ type simpleAlias struct {
 }
 
 func (a simpleAlias) execute(f qf.QFrame) qf.QFrame {
-	return f.Apply("", a.dstCol, a.srcCol)
+	return f.Copy(a.dstCol, a.srcCol)
 }
 
 func (a simpleAlias) column() string {
