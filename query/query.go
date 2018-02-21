@@ -90,7 +90,7 @@ func unMarshalFilterClause(input interface{}) (qf.Clause, error) {
 			return c, fmt.Errorf("invalid column name, expected string, was: %v", clause[1])
 		}
 
-		c = qf.Filter(filter.Filter{Comparator: filter.Comparator(operator), Column: colName, Arg: clause[2]})
+		c = qf.Filter(filter.Filter{Comparator: operator, Column: colName, Arg: clause[2]})
 	}
 
 	return c, c.Err()
