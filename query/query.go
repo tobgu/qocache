@@ -24,8 +24,8 @@ type query struct {
 	From     *query      `json:"from,omitempty"`
 }
 
-func unMarshalFilterClauses(input []interface{}) ([]qf.Clause, error) {
-	result := make([]qf.Clause, 0, len(input))
+func unMarshalFilterClauses(input []interface{}) ([]qf.FilterClause, error) {
+	result := make([]qf.FilterClause, 0, len(input))
 	for _, x := range input {
 		c, err := unMarshalFilterClause(x)
 		if err != nil {
@@ -37,8 +37,8 @@ func unMarshalFilterClauses(input []interface{}) ([]qf.Clause, error) {
 	return result, nil
 }
 
-func unMarshalFilterClause(input interface{}) (qf.Clause, error) {
-	var c qf.Clause = qf.Null()
+func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
+	var c qf.FilterClause = qf.Null()
 	if input == nil {
 		return c, c.Err()
 	}
