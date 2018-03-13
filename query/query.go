@@ -299,8 +299,6 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 	newF = newF.Distinct(q.Distinct...)
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
-
-	// TODO: Add info about frame length before slicing
 	newF = q.slice(newF)
 	return newF, newF.Err
 }

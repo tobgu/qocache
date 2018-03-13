@@ -325,9 +325,9 @@ func TestQuery(t *testing.T) {
 
 // TODO
 // - Types and enums
-// - Meta data response headers
+// - Meta data response headers (total length before slicing for example)
 // - Compression
-// - Advanced select, applying functions in aliases
 // - Standin columns
 // - Statistics
 // - In filter with sub query
+// - Align "and", "or", etc. to QCache syntax, &, |, ...
