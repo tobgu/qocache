@@ -20,6 +20,7 @@ type TestData struct {
 	F  float64
 	B  bool
 	I2 int
+	I3 int
 }
 
 type testCache struct {
@@ -245,49 +246,52 @@ func TestQuery(t *testing.T) {
 			name:     "Basic insert and query with empty query",
 			input:    []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
 			query:    `{}`,
-			expected: []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
-		},
+			expected: []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}},
 		{
 			name:     "Basic project",
 			input:    []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
 			query:    `{"select": ["S"]}`,
-			expected: []TestData{{S: "Foo"}},
-		},
+			expected: []TestData{{S: "Foo"}}},
 		{
 			name:         "Projection with unknown column",
 			input:        []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
 			query:        `{"select": ["NONEXISTING"]}`,
-			expectedCode: http.StatusBadRequest,
-		},
+			expectedCode: http.StatusBadRequest},
 		{
 			name:     "Distinct",
 			input:    []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "A", I: 2}, {S: "C", I: 1}},
 			query:    `{"distinct": ["S", "I"]}`,
-			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
-		},
+			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}},
 		{
 			name:     "Group by without aggregation",
 			input:    []TestData{{S: "C", I: 1}, {S: "A", I: 2}, {S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
 			query:    `{"group_by": ["S", "I"]}`,
-			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
-		},
+			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}},
 		{
 			name:     "Aggregation with group by",
 			input:    []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}},
 			query:    `{"select": ["S", ["sum", "I"]], "group_by": ["S"]}`,
-			expected: []TestData{{S: "A", I: 5}, {S: "C", I: 1}},
-		},
+			expected: []TestData{{S: "A", I: 5}, {S: "C", I: 1}}},
 		{
 			name:     "Aggregation without group by",
 			input:    []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}},
 			query:    `{"select": [["sum", "I"]]}`,
-			expected: []TestData{{I: 6}},
-		},
+			expected: []TestData{{I: 6}}},
 		{
-			name:     "Simple alias",
+			name:     "Simple column alias",
 			input:    []TestData{{I: 1}, {I: 2}},
 			query:    `{"select": ["I", ["=", "I2", "I"]]}`,
 			expected: []TestData{{I: 1, I2: 1}, {I: 2, I2: 2}}},
+		{
+			name:     "Simple constant alias",
+			input:    []TestData{{I: 1}, {I: 2}},
+			query:    `{"select": ["I", ["=", "I2", 22]]}`,
+			expected: []TestData{{I: 1, I2: 22}, {I: 2, I2: 22}}},
+		{
+			name:     "Alias with operation",
+			input:    []TestData{{I: 1, I2: 10}, {I: 2, I2: 20}},
+			query:    `{"select": ["I", ["=", "I3", ["+", "I2", "I"]]]}`,
+			expected: []TestData{{I: 1, I3: 11}, {I: 2, I3: 22}}},
 		{
 			name:     "Sub query",
 			input:    []TestData{{I: 1}, {I: 2}, {I: 3}},
