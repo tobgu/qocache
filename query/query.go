@@ -292,11 +292,11 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 
 	newF := filterClause.Filter(f)
 	if len(q.GroupBy) > 0 || len(selectClause.aggregations) > 0 {
-		grouper := newF.GroupBy(q.GroupBy...)
+		grouper := newF.GroupBy(qf.GroupBy(q.GroupBy...))
 		newF = selectClause.aggregations.Execute(grouper)
 	}
 
-	newF = newF.Distinct(q.Distinct...)
+	newF = newF.Distinct(qf.GroupBy(q.Distinct...))
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
 	newF = q.slice(newF)
