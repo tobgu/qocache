@@ -150,11 +150,11 @@ func TestFilter(t *testing.T) {
 			expected: []TestData{{I: 223}},
 		},
 		{
-			filter:   `["not", [">", "I", 199]]`,
+			filter:   `["!", [">", "I", 199]]`,
 			expected: []TestData{{I: 123}},
 		},
 		{
-			filter:   `["and", [">", "I", 199], ["or", [">", "I", 199], ["<", "I", 20]]]`,
+			filter:   `["&", [">", "I", 199], ["|", [">", "I", 199], ["<", "I", 20]]]`,
 			expected: []TestData{{I: 200}, {I: 223}},
 		},
 	}
@@ -270,7 +270,7 @@ func TestQuery(t *testing.T) {
 		{
 			name:     "Aggregation with group by",
 			input:    []TestData{{S: "A", I: 2}, {S: "C", I: 1}, {S: "A", I: 1}, {S: "A", I: 2}},
-			query:    `{"select": ["S", ["sum", "I"]], "group_by": ["S"]}`,
+			query:    `{"select": ["S", ["sum", "I"]], "group_by": ["S"], "order_by": ["S"]}`,
 			expected: []TestData{{S: "A", I: 5}, {S: "C", I: 1}}},
 		{
 			name:     "Aggregation without group by",
@@ -323,11 +323,23 @@ func TestQuery(t *testing.T) {
 	}
 }
 
-// TODO
-// - Types and enums
-// - Meta data response headers (total length before slicing for example)
+/* TODO
+
+ - Types and enums
+   X-QCache-types: foo=string;bar=string
+   X-QCache-types: foo=enum;bar=enum
+
+ - Meta data response headers (total length before slicing for example)
+   X-QCache-unsliced-length
+
 // - Compression
-// - Standin columns
-// - Statistics
+
+ - Standin columns
+   X-QCache-stand-in-columns: foo=10;bar=baz
+
+// - Statistics, including memory stats
+
 // - In filter with sub query
+
 // - Align "and", "or", etc. to QCache syntax, &, |, ...
+*/

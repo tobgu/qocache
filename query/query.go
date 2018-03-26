@@ -58,21 +58,21 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 	}
 
 	switch operator {
-	case "and", "AND":
+	case "&":
 		subClauses, err := unMarshalFilterClauses(clause[1:])
 		if err != nil {
 			return c, err
 		}
 		c = qf.And(subClauses...)
-	case "or", "OR":
+	case "|":
 		subClauses, err := unMarshalFilterClauses(clause[1:])
 		if err != nil {
 			return c, err
 		}
 		c = qf.Or(subClauses...)
-	case "not", "NOT":
+	case "!":
 		if len(clause) != 2 {
-			return c, fmt.Errorf("invalid 'not' filter clause length, expected [not, [...]], was: %v", clause)
+			return c, fmt.Errorf(`invalid 'not' filter clause length, expected ["!", [...]], was: %v`, clause)
 		}
 
 		subClause, err := unMarshalFilterClause(clause[1])
@@ -290,13 +290,16 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 		return f, err
 	}
 
-	newF := filterClause.Filter(f)
+	newF := f.Filter(filterClause)
 	if len(q.GroupBy) > 0 || len(selectClause.aggregations) > 0 {
 		grouper := newF.GroupBy(qf.GroupBy(q.GroupBy...))
 		newF = selectClause.aggregations.Execute(grouper)
 	}
 
-	newF = newF.Distinct(qf.GroupBy(q.Distinct...))
+	if q.Distinct != nil {
+		newF = newF.Distinct(qf.GroupBy(q.Distinct...))
+	}
+
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
 	newF = selectClause.Select(newF)
 	newF = q.slice(newF)
