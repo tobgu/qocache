@@ -177,7 +177,19 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	compareTestData(t, output, input)
 }
 
-func toKeyVals(kvs []keyValProperty) string {
+func toKeyVals(kvs []keyValProperty, format string) string {
+	if format == "json" {
+		m := make(map[string]string)
+		for _, kv := range kvs {
+			m[kv.key] = kv.value
+		}
+		bResult, err := json.Marshal(m)
+		if err != nil {
+			panic(err)
+		}
+		return string(bResult)
+	}
+
 	s := make([]string, len(kvs))
 	for i, kv := range kvs {
 		s[i] = fmt.Sprintf("%s=%s", kv.key, kv.value)
@@ -202,18 +214,20 @@ func TestInsertCsvWithTypes(t *testing.T) {
 		{{"F", "enum", "1.5"}, {"B", "enum", "true"}},
 	}
 
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("Types %s", toKeyVals(tc)), func(t *testing.T) {
-			cache.insertCsv("FOO", map[string]string{"X-QCache-types": toKeyVals(tc)}, input)
-			output := make([]map[string]interface{}, 0)
-			cache.queryJson("FOO", nil, "{}", &output)
-			assertEqualInts(t, 1, len(output))
-			for _, kv := range tc {
-				sVal, ok := output[0][kv.key].(string)
-				assertTrue(t, ok)
-				assertEqualStrings(t, kv.expected, sVal)
-			}
-		})
+	for _, format := range []string{"kv", "json"} {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("Types %s", toKeyVals(tc, format)), func(t *testing.T) {
+				cache.insertCsv("FOO", map[string]string{"X-QCache-types": toKeyVals(tc, format)}, input)
+				output := make([]map[string]interface{}, 0)
+				cache.queryJson("FOO", nil, "{}", &output)
+				assertEqualInts(t, 1, len(output))
+				for _, kv := range tc {
+					sVal, ok := output[0][kv.key].(string)
+					assertTrue(t, ok)
+					assertEqualStrings(t, kv.expected, sVal)
+				}
+			})
+		}
 	}
 }
 

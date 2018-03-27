@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	qf "github.com/tobgu/qframe"
@@ -20,20 +21,38 @@ func trim(s string) string {
 	return strings.Trim(s, " ")
 }
 
-func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
-	types := make(map[string]string)
-	for _, kv := range strings.Split(headers.Get("X-QCache-types"), ",") {
+func headerToKeyValues(headers http.Header, headerName string) (map[string]string, error) {
+	keyVals := make(map[string]string)
+	h := trim(headers.Get(headerName))
+	if strings.HasPrefix(h, "{") {
+		// Assume JSON dict
+		err := json.Unmarshal([]byte(h), &keyVals)
+		if err != nil {
+			err = fmt.Errorf("could not JSON decode content in header %s: %s. %s", headerName, h, err.Error())
+		}
+		return keyVals, err
+	}
+
+	// Key-val format: key=val,key2=val2, ...
+	for _, kv := range strings.Split(headers.Get(headerName), ",") {
 		if kv != "" {
 			kvSlice := strings.Split(kv, "=")
 			if len(kvSlice) != 2 {
-				return nil, fmt.Errorf("invalid key=value pair in X-QCache-types: %s", kv)
+				return nil, fmt.Errorf("invalid key=value pair in X-QCache-keyVals: %s", kv)
 			}
-			types[trim(kvSlice[0])] = trim(kvSlice[1])
+			keyVals[trim(kvSlice[0])] = trim(kvSlice[1])
 		}
 	}
 
-	println("!!! Types: ", fmt.Sprintf("%v, %v, %v", types, headers["X-QCache-types"], headers))
-	return []qf.CsvConfigFunc{qf.Types(types)}, nil
+	return keyVals, nil
+}
+
+func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
+	typs, err := headerToKeyValues(headers, "X-QCache-types")
+	if err != nil {
+		return nil, err
+	}
+	return []qf.CsvConfigFunc{qf.Types(typs)}, nil
 }
 
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
