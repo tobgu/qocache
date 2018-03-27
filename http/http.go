@@ -34,7 +34,7 @@ func headerToKeyValues(headers http.Header, headerName string) (map[string]strin
 	}
 
 	// Key-val format: key=val,key2=val2, ...
-	for _, kv := range strings.Split(headers.Get(headerName), ",") {
+	for _, kv := range strings.Split(headers.Get(headerName), ";") {
 		if kv != "" {
 			kvSlice := strings.Split(kv, "=")
 			if len(kvSlice) != 2 {

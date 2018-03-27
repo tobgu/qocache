@@ -194,7 +194,7 @@ func toKeyVals(kvs []keyValProperty, format string) string {
 	for i, kv := range kvs {
 		s[i] = fmt.Sprintf("%s=%s", kv.key, kv.value)
 	}
-	return strings.Join(s, ",")
+	return strings.Join(s, ";")
 }
 
 type keyValProperty struct {
@@ -421,10 +421,7 @@ func TestQuery(t *testing.T) {
 
 /* TODO
 
- - Types and enums
-   X-QCache-types: foo=string;bar=string
-   X-QCache-types: foo=enum;bar=enum
-
+ - Enum range specifications
  - Meta data response headers (total length before slicing for example)
    X-QCache-unsliced-length
 
