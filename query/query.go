@@ -6,6 +6,7 @@ import (
 	qf "github.com/tobgu/qframe"
 	"github.com/tobgu/qframe/aggregation"
 	"github.com/tobgu/qframe/filter"
+	qostrings "github.com/tobgu/qocache/strings"
 	"strings"
 )
 
@@ -90,7 +91,16 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 			return c, fmt.Errorf("invalid column name, expected string, was: %v", clause[1])
 		}
 
-		c = qf.Filter(filter.Filter{Comparator: operator, Column: colName, Arg: clause[2]})
+		var arg = clause[2]
+		if s, ok := arg.(string); ok {
+			// Quoted strings are string constants, other strings are column names
+			if qostrings.IsQuoted(s) {
+				arg = qostrings.TrimQuotes(s)
+			} else {
+				arg = filter.ColumnName(s)
+			}
+		}
+		c = qf.Filter(filter.Filter{Comparator: operator, Column: colName, Arg: arg})
 	}
 
 	return c, c.Err()

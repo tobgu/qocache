@@ -231,10 +231,41 @@ func TestInsertCsvWithTypes(t *testing.T) {
 	}
 }
 
+func TestStandinColumns(t *testing.T) {
+	// X-QCache-stand-in-columns: foo=10;bar=baz
+	cache := newTestCache(t)
+	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
+
+	cases := [][]keyValProperty{
+		// No stand in, value exists
+		{{"S", "'Bar'", "Foo"}},
+
+		// Stand in from string constant to X and from S to Y
+		{{"X", "'Bar'", "Bar"}, {"Y", "S", "Foo"}},
+	}
+
+	for _, format := range []string{"kv", "json"} {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("Types %s", toKeyVals(tc, format)), func(t *testing.T) {
+				cache.insertCsv("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, input)
+				output := make([]map[string]interface{}, 0)
+				cache.queryJson("FOO", nil, "{}", &output)
+				assertEqualInts(t, 1, len(output))
+				for _, kv := range tc {
+					sVal, ok := output[0][kv.key].(string)
+					assertTrue(t, ok)
+					assertEqualStrings(t, kv.expected, sVal)
+				}
+			})
+		}
+	}
+
+}
+
 func TestFilter(t *testing.T) {
 	// TODO: Test error cases
 	cache := newTestCache(t)
-	input := []TestData{{I: 123}, {I: 200}, {I: 223}}
+	input := []TestData{{I: 123, I2: 124}, {I: 200, I2: 124}, {I: 223, I2: 124}}
 	output := []TestData{}
 	cases := []struct {
 		filter   string
@@ -242,15 +273,19 @@ func TestFilter(t *testing.T) {
 	}{
 		{
 			filter:   `[">", "I", 200]`,
-			expected: []TestData{{I: 223}},
+			expected: []TestData{{I: 223, I2: 124}},
 		},
 		{
 			filter:   `["!", [">", "I", 199]]`,
-			expected: []TestData{{I: 123}},
+			expected: []TestData{{I: 123, I2: 124}},
 		},
 		{
 			filter:   `["&", [">", "I", 199], ["|", [">", "I", 199], ["<", "I", 20]]]`,
-			expected: []TestData{{I: 200}, {I: 223}},
+			expected: []TestData{{I: 200, I2: 124}, {I: 223, I2: 124}},
+		},
+		{
+			filter:   `["<", "I", "I2"]`,
+			expected: []TestData{{I: 123, I2: 124}},
 		},
 	}
 
@@ -420,17 +455,14 @@ func TestQuery(t *testing.T) {
 }
 
 /* TODO
-
- - Enum range specifications
- - Meta data response headers (total length before slicing for example)
-   X-QCache-unsliced-length
-
-// - Compression
-
- - Standin columns
-   X-QCache-stand-in-columns: foo=10;bar=baz
-
-// - Statistics, including memory stats
-
-// - In filter with sub query
+- Enum range specifications
+- Meta data response headers (total length before slicing for example)
+  X-QCache-unsliced-length
+- Compression
+- Standin columns
+  X-QCache-stand-in-columns: foo=10;bar=baz
+- Statistics, including memory stats
+- In filter with sub query
+- Viper for configuration management?
+- logrus for logging?
 */

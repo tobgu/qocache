@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qframe/filter"
 	"github.com/tobgu/qocache/cache"
 	"github.com/tobgu/qocache/query"
+	qostrings "github.com/tobgu/qocache/strings"
 	"log"
 	"net/http"
 	"strings"
@@ -21,8 +23,8 @@ func trim(s string) string {
 	return strings.Trim(s, " ")
 }
 
-func headerToKeyValues(headers http.Header, headerName string) (map[string]string, error) {
-	keyVals := make(map[string]string)
+func headerToKeyValues(headers http.Header, headerName string) (map[string]interface{}, error) {
+	keyVals := make(map[string]interface{})
 	h := trim(headers.Get(headerName))
 	if strings.HasPrefix(h, "{") {
 		// Assume JSON dict
@@ -47,12 +49,39 @@ func headerToKeyValues(headers http.Header, headerName string) (map[string]strin
 	return keyVals, nil
 }
 
+func strIfToStrStr(m map[string]interface{}, err error) (map[string]string, error) {
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("%v is not a valid string", v)
+		}
+		result[k] = s
+	}
+
+	return result, nil
+}
+
 func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
-	typs, err := headerToKeyValues(headers, "X-QCache-types")
+	typs, err := strIfToStrStr(headerToKeyValues(headers, "X-QCache-types"))
 	if err != nil {
 		return nil, err
 	}
 	return []qf.CsvConfigFunc{qf.Types(typs)}, nil
+}
+
+func firstErr(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +89,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["key"]
 
+	var frame qf.QFrame
 	switch r.Header.Get("Content-Type") {
 	case "text/csv":
 		configFns, err := headersToCsvConfig(r.Header)
@@ -68,26 +98,54 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		frame := qf.ReadCsv(r.Body, configFns...)
-		if frame.Err != nil {
-			errorMsg := fmt.Sprintf("Could not decode CSV data: %v", frame.Err)
-			http.Error(w, errorMsg, http.StatusBadRequest)
-			return
-		}
-		a.cache.Put(key, frame, frame.ByteSize())
-		w.WriteHeader(http.StatusCreated)
+		frame = qf.ReadCsv(r.Body, configFns...)
 	case "application/json":
-		frame := qf.ReadJson(r.Body)
-		if frame.Err != nil {
-			errorMsg := fmt.Sprintf("Could not decode JSON data: %v", frame.Err)
-			http.Error(w, errorMsg, http.StatusBadRequest)
-			return
-		}
-		a.cache.Put(key, frame, frame.ByteSize())
-		w.WriteHeader(http.StatusCreated)
+		frame = qf.ReadJson(r.Body)
 	default:
 		http.Error(w, "Unknown content type", http.StatusBadRequest)
+		return
 	}
+
+	if frame.Err != nil {
+		errorMsg := fmt.Sprintf("Could not decode data: %v", frame.Err)
+		http.Error(w, errorMsg, http.StatusBadRequest)
+		return
+	}
+
+	frame, err := addStandInColumns(frame, r.Header)
+	if err = firstErr(err, frame.Err); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	a.cache.Put(key, frame, frame.ByteSize())
+	w.WriteHeader(http.StatusCreated)
+}
+
+func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) {
+	// TODO: Currently only works with string constants and columns, fix for int, float and bool
+	standIns, err := headerToKeyValues(headers, "X-QCache-stand-in-columns")
+	if err != nil {
+		return frame, err
+	}
+
+	for col, standIn := range standIns {
+		if !frame.Contains(col) {
+			if s, ok := standIn.(string); ok {
+				if qostrings.IsQuoted(s) {
+					// String constant
+					standIn = qostrings.TrimQuotes(s)
+				} else {
+					// Column reference
+					standIn = filter.ColumnName(s)
+				}
+			}
+
+			frame = frame.Apply(qf.Instruction{Fn: standIn, DstCol: col})
+		}
+	}
+
+	return frame, nil
 }
 
 func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
