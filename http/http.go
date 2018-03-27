@@ -8,11 +8,32 @@ import (
 	"github.com/tobgu/qocache/query"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type application struct {
 	cache cache.Cache
+}
+
+func trim(s string) string {
+	return strings.Trim(s, " ")
+}
+
+func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
+	types := make(map[string]string)
+	for _, kv := range strings.Split(headers.Get("X-QCache-types"), ",") {
+		if kv != "" {
+			kvSlice := strings.Split(kv, "=")
+			if len(kvSlice) != 2 {
+				return nil, fmt.Errorf("invalid key=value pair in X-QCache-types: %s", kv)
+			}
+			types[trim(kvSlice[0])] = trim(kvSlice[1])
+		}
+	}
+
+	println("!!! Types: ", fmt.Sprintf("%v, %v, %v", types, headers["X-QCache-types"], headers))
+	return []qf.CsvConfigFunc{qf.Types(types)}, nil
 }
 
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +43,13 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Header.Get("Content-Type") {
 	case "text/csv":
-		frame := qf.ReadCsv(r.Body)
+		configFns, err := headersToCsvConfig(r.Header)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		frame := qf.ReadCsv(r.Body, configFns...)
 		if frame.Err != nil {
 			errorMsg := fmt.Sprintf("Could not decode CSV data: %v", frame.Err)
 			http.Error(w, errorMsg, http.StatusBadRequest)

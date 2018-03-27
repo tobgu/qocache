@@ -11,8 +11,30 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
+
+func assertTrue(t *testing.T, val bool) {
+	t.Helper()
+	if !val {
+		t.Errorf("Expected true, was false!")
+	}
+}
+
+func assertEqualStrings(t *testing.T, expected, actual string) {
+	t.Helper()
+	if expected != actual {
+		t.Errorf("%s != %s", expected, actual)
+	}
+}
+
+func assertEqualInts(t *testing.T, expected, actual int) {
+	t.Helper()
+	if expected != actual {
+		t.Errorf("%d != %d", expected, actual)
+	}
+}
 
 type TestData struct {
 	S  string
@@ -47,7 +69,27 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 	return rr
 }
 
+func (c *testCache) insertCsv(key string, headers map[string]string, input interface{}) {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+
+	headers["Content-Type"] = "text/csv"
+
+	b := new(bytes.Buffer)
+	gocsv.Marshal(input, b)
+	rr := c.insertDataset(key, headers, b)
+
+	if rr.Code != http.StatusCreated {
+		c.t.Errorf("handler returned wrong status code: got %v want %v: %s", rr.Code, http.StatusCreated, rr.Body.String())
+	}
+}
+
 func (c *testCache) insertJson(key string, headers map[string]string, input interface{}) {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+
 	b := new(bytes.Buffer)
 	json.NewEncoder(b).Encode(input)
 	headers["Content-Type"] = "application/json"
@@ -55,7 +97,7 @@ func (c *testCache) insertJson(key string, headers map[string]string, input inte
 
 	// Check the status code is what we expect.
 	if rr.Code != http.StatusCreated {
-		c.t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusCreated)
+		c.t.Errorf("handler returned wrong status code: got %v want %v: %s", rr.Code, http.StatusCreated, rr.Body.String())
 	}
 }
 
@@ -76,6 +118,10 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q string
 }
 
 func (c *testCache) queryJson(key string, headers map[string]string, q string, output interface{}) *httptest.ResponseRecorder {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+
 	headers["Accept"] = "application/json"
 	rr := c.queryDataset(key, headers, q)
 	if rr.Code != http.StatusOK {
@@ -89,7 +135,7 @@ func (c *testCache) queryJson(key string, headers map[string]string, q string, o
 
 	err := json.NewDecoder(rr.Body).Decode(output)
 	if err != nil {
-		c.t.Fatal("Failed to unmarshal JSON")
+		c.t.Fatalf("Failed to unmarshal JSON: %s", err.Error())
 	}
 
 	return rr
@@ -97,9 +143,10 @@ func (c *testCache) queryJson(key string, headers map[string]string, q string, o
 
 func compareTestData(t *testing.T, actual, expected []TestData) {
 	if len(actual) == len(expected) {
-		// TODO: Shouldn't this be a loop comparing all elements?
-		if actual[0] != expected[0] {
-			t.Errorf("Wrong record content: got %v want %v", actual, expected)
+		for i := range actual {
+			if actual[i] != expected[i] {
+				t.Errorf("Wrong record content in position %d: got %v want %v", i, actual, expected)
+			}
 		}
 	} else {
 		t.Errorf("Wrong record count: got %v want %v", actual, expected)
@@ -109,15 +156,9 @@ func compareTestData(t *testing.T, actual, expected []TestData) {
 func TestBasicInsertAndQueryCsv(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
-	b := new(bytes.Buffer)
-	gocsv.Marshal(input, b)
-	rr := cache.insertDataset("FOO", map[string]string{"Content-Type": "text/csv"}, b)
+	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv"}, input)
 
-	if rr.Code != http.StatusCreated {
-		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusCreated)
-	}
-
-	rr = cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}")
+	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}")
 	if rr.Code != http.StatusOK {
 		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
 	}
@@ -134,6 +175,46 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	}
 
 	compareTestData(t, output, input)
+}
+
+func toKeyVals(kvs []keyValProperty) string {
+	s := make([]string, len(kvs))
+	for i, kv := range kvs {
+		s[i] = fmt.Sprintf("%s=%s", kv.key, kv.value)
+	}
+	return strings.Join(s, ",")
+}
+
+type keyValProperty struct {
+	key      string
+	value    string
+	expected string
+}
+
+func TestInsertCsvWithTypes(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
+
+	cases := [][]keyValProperty{
+		{{"I", "string", "123"}},
+		{{"F", "string", "1.5"}, {"B", "string", "true"}},
+		{{"I", "enum", "123"}},
+		{{"F", "enum", "1.5"}, {"B", "enum", "true"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("Types %s", toKeyVals(tc)), func(t *testing.T) {
+			cache.insertCsv("FOO", map[string]string{"X-QCache-types": toKeyVals(tc)}, input)
+			output := make([]map[string]interface{}, 0)
+			cache.queryJson("FOO", nil, "{}", &output)
+			assertEqualInts(t, 1, len(output))
+			for _, kv := range tc {
+				sVal, ok := output[0][kv.key].(string)
+				assertTrue(t, ok)
+				assertEqualStrings(t, kv.expected, sVal)
+			}
+		})
+	}
 }
 
 func TestFilter(t *testing.T) {
@@ -241,6 +322,7 @@ func TestQuery(t *testing.T) {
 		query        string
 		expected     []TestData
 		expectedCode int
+		headers      map[string]string
 	}{
 		{
 			name:     "Basic insert and query with empty query",
@@ -265,7 +347,7 @@ func TestQuery(t *testing.T) {
 		{
 			name:     "Group by without aggregation",
 			input:    []TestData{{S: "C", I: 1}, {S: "A", I: 2}, {S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}},
-			query:    `{"group_by": ["S", "I"]}`,
+			query:    `{"group_by": ["S", "I"], "order_by": ["S", "I"]}`,
 			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}},
 		{
 			name:     "Aggregation with group by",
@@ -303,7 +385,7 @@ func TestQuery(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cache := newTestCache(t)
-			cache.insertJson("FOO", map[string]string{}, tc.input)
+			cache.insertJson("FOO", tc.headers, tc.input)
 			output := make([]TestData, 0)
 			rr := cache.queryJson("FOO", map[string]string{}, tc.query, &output)
 
@@ -340,6 +422,4 @@ func TestQuery(t *testing.T) {
 // - Statistics, including memory stats
 
 // - In filter with sub query
-
-// - Align "and", "or", etc. to QCache syntax, &, |, ...
 */
