@@ -187,11 +187,13 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	var err error = nil
 	r.ParseForm()
 	if qstring := r.Form.Get("q"); qstring != "" {
-		frame, err = query.Query(frame, qstring)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Error executing query: %s", err.Error()), http.StatusBadRequest)
+		result := query.Query(frame, qstring)
+		if result.Err != nil {
+			http.Error(w, fmt.Sprintf("Error executing query: %s", result.Err.Error()), http.StatusBadRequest)
 			return
 		}
+		frame = result.Qframe
+		w.Header().Set("X-QCache-unsliced-length", fmt.Sprintf("%d", result.UnslicedLen))
 	}
 
 	accept := r.Header.Get("Accept")

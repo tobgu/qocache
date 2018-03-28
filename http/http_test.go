@@ -355,7 +355,8 @@ func TestQueryWithSlice(t *testing.T) {
 		t.Run(fmt.Sprintf("Slice %d %d", tc.offset, tc.limit), func(t *testing.T) {
 			output := []TestData{}
 			cache.insertJson("FOO", map[string]string{}, input)
-			cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), &output)
+			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), &output)
+			assertEqual(t, fmt.Sprintf("%d", len(input)), rr.HeaderMap.Get("X-QCache-unsliced-length"))
 			compareTestData(t, output, tc.expected)
 		})
 	}
@@ -417,7 +418,7 @@ func TestQuery(t *testing.T) {
 			query:    `{"select": ["I", ["=", "I2", 22]]}`,
 			expected: []TestData{{I: 1, I2: 22}, {I: 2, I2: 22}}},
 		{
-			name:     "Alias with operation",
+			name:     "alias with operation",
 			input:    []TestData{{I: 1, I2: 10}, {I: 2, I2: 20}},
 			query:    `{"select": ["I", ["=", "I3", ["+", "I2", "I"]]]}`,
 			expected: []TestData{{I: 1, I3: 11}, {I: 2, I3: 22}}},

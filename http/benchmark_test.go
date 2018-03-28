@@ -165,7 +165,7 @@ gc 47 @94.739s 14%: 0.15+2968+14 ms clock, 0.30+189/1479/1495+29 ms cpu, 2349->2
 GODEBUG=gctrace=1 go test -bench=BenchmarkStringGcOverhead -run=^$ -cpuprofile=query_string.prof
 ------------------------------------------------------------------------------------------------------------
 Refactor string series to use one, big, byte blob backing it:
-- Query times reduced by ~30% (61.5 s -> 44.0 s)
+- query times reduced by ~30% (61.5 s -> 44.0 s)
 - Load times reduced by a lot! (30 s -> 4 s)
 
 gc 55 @34.935s 0%: 0.040+1.1+0.13 ms clock, 0.080+0.16/0.047/0.84+0.26 ms cpu, 1018->1018->522 MB, 1044 MB goal, 2 P

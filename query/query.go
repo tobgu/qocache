@@ -25,6 +25,12 @@ type query struct {
 	From     *query      `json:"from,omitempty"`
 }
 
+type QueryResult struct {
+	Qframe      qf.QFrame
+	Err         error
+	UnslicedLen int
+}
+
 func unMarshalFilterClauses(input []interface{}) ([]qf.FilterClause, error) {
 	result := make([]qf.FilterClause, 0, len(input))
 	for _, x := range input {
@@ -108,11 +114,11 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 
 type selectClause struct {
 	columns []string
-	aliases []Alias
+	aliases []alias
 	aggregations
 }
 
-func (c selectClause) Select(f qf.QFrame) qf.QFrame {
+func (c selectClause) doSelect(f qf.QFrame) qf.QFrame {
 	for _, a := range c.aliases {
 		f = a.execute(f)
 	}
@@ -124,16 +130,16 @@ func (c selectClause) Select(f qf.QFrame) qf.QFrame {
 	return f
 }
 
-type Alias struct {
+type alias struct {
 	dstCol string
 	expr   qf.Expression
 }
 
-func (a Alias) execute(f qf.QFrame) qf.QFrame {
+func (a alias) execute(f qf.QFrame) qf.QFrame {
 	return f.Eval(a.dstCol, a.expr, nil)
 }
 
-func (a Alias) column() string {
+func (a alias) column() string {
 	return a.dstCol
 }
 
@@ -156,7 +162,7 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 
 	columns := make([]string, 0, len(inputSlice))
 	aggregations := make(aggregations, 0)
-	aliases := make([]Alias, 0)
+	aliases := make([]alias, 0)
 	for _, part := range inputSlice {
 		switch p := part.(type) {
 		case []interface{}:
@@ -170,7 +176,7 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 			}
 
 			if op == "=" {
-				// Alias expression
+				// alias expression
 				a, err := createAlias(p[1:])
 				if err != nil {
 					return emptySelect, err
@@ -196,18 +202,18 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 	return selectClause{columns: columns, aggregations: aggregations, aliases: aliases}, nil
 }
 
-func createAlias(aliasExpr []interface{}) (Alias, error) {
+func createAlias(aliasExpr []interface{}) (alias, error) {
 	if len(aliasExpr) != 2 {
-		return Alias{}, fmt.Errorf("invalid alias argument length, expected destination column and src expression, was: %v", aliasExpr)
+		return alias{}, fmt.Errorf("invalid alias argument length, expected destination column and src expression, was: %v", aliasExpr)
 	}
 
 	dstCol, ok := aliasExpr[0].(string)
 	if !ok {
-		return Alias{}, fmt.Errorf("invalid alias destination column, was: %v", aliasExpr[0])
+		return alias{}, fmt.Errorf("invalid alias destination column, was: %v", aliasExpr[0])
 	}
 
 	expr := qf.NewExpr(aliasExpr[1])
-	return Alias{dstCol: dstCol, expr: expr}, expr.Err()
+	return alias{dstCol: dstCol, expr: expr}, expr.Err()
 }
 
 func createAggregation(expr []interface{}) (aggregation.Aggregation, error) {
@@ -248,13 +254,13 @@ func newQuery(qString string) (query, error) {
 	return q, err
 }
 
-func Query(f qf.QFrame, qString string) (qf.QFrame, error) {
+func Query(f qf.QFrame, qString string) QueryResult {
 	q, err := newQuery(qString)
 	if err != nil {
-		return qf.QFrame{}, err
+		return QueryResult{Err: err}
 	}
 
-	return q.Query(f)
+	return q.query(f)
 }
 
 func intMin(x, y int) int {
@@ -274,30 +280,31 @@ func (q query) slice(f qf.QFrame) qf.QFrame {
 	return f.Slice(q.Offset, stop)
 }
 
-func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
+func (q query) query(f qf.QFrame) QueryResult {
 	var err error
 	if q.From != nil {
-		f, err = q.From.Query(f)
-		if err != nil {
-			return f, err
+		result := q.From.query(f)
+		if result.Err != nil {
+			return result
 		}
+		f = result.Qframe
 	}
 
 	if len(q.GroupBy) > 0 && len(q.Distinct) > 0 {
 		// Don'ẗ really know what this combination would mean at the moment
 		// therefor it is currently banned.
 		// If a good use case comes up this may be reconsidered.
-		return f, fmt.Errorf("cannot combine group by and distinct in the same query")
+		return QueryResult{Err: fmt.Errorf("cannot combine group by and distinct in the same query")}
 	}
 
 	filterClause, err := unMarshalFilterClause(q.Where)
 	if err != nil {
-		return f, err
+		return QueryResult{Err: err}
 	}
 
 	selectClause, err := unMarshalSelectClause(q.Select)
 	if err != nil {
-		return f, err
+		return QueryResult{Err: err}
 	}
 
 	newF := f.Filter(filterClause)
@@ -311,7 +318,8 @@ func (q query) Query(f qf.QFrame) (qf.QFrame, error) {
 	}
 
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)
-	newF = selectClause.Select(newF)
+	newF = selectClause.doSelect(newF)
+	unslicedLen := newF.Len()
 	newF = q.slice(newF)
-	return newF, newF.Err
+	return QueryResult{Qframe: newF, UnslicedLen: unslicedLen, Err: newF.Err}
 }
