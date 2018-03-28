@@ -22,17 +22,10 @@ func assertTrue(t *testing.T, val bool) {
 	}
 }
 
-func assertEqualStrings(t *testing.T, expected, actual string) {
+func assertEqual(t *testing.T, expected, actual interface{}) {
 	t.Helper()
 	if expected != actual {
-		t.Errorf("%s != %s", expected, actual)
-	}
-}
-
-func assertEqualInts(t *testing.T, expected, actual int) {
-	t.Helper()
-	if expected != actual {
-		t.Errorf("%d != %d", expected, actual)
+		t.Errorf("%v != %v", expected, actual)
 	}
 }
 
@@ -179,7 +172,7 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 
 func toKeyVals(kvs []keyValProperty, format string) string {
 	if format == "json" {
-		m := make(map[string]string)
+		m := make(map[string]interface{})
 		for _, kv := range kvs {
 			m[kv.key] = kv.value
 		}
@@ -192,15 +185,15 @@ func toKeyVals(kvs []keyValProperty, format string) string {
 
 	s := make([]string, len(kvs))
 	for i, kv := range kvs {
-		s[i] = fmt.Sprintf("%s=%s", kv.key, kv.value)
+		s[i] = fmt.Sprintf("%s=%v", kv.key, kv.value)
 	}
 	return strings.Join(s, ";")
 }
 
 type keyValProperty struct {
 	key      string
-	value    string
-	expected string
+	value    interface{}
+	expected interface{}
 }
 
 func TestInsertCsvWithTypes(t *testing.T) {
@@ -220,11 +213,13 @@ func TestInsertCsvWithTypes(t *testing.T) {
 				cache.insertCsv("FOO", map[string]string{"X-QCache-types": toKeyVals(tc, format)}, input)
 				output := make([]map[string]interface{}, 0)
 				cache.queryJson("FOO", nil, "{}", &output)
-				assertEqualInts(t, 1, len(output))
+				assertEqual(t, 1, len(output))
 				for _, kv := range tc {
-					sVal, ok := output[0][kv.key].(string)
-					assertTrue(t, ok)
-					assertEqualStrings(t, kv.expected, sVal)
+					if len(output) > 0 {
+						sVal, ok := output[0][kv.key].(string)
+						assertTrue(t, ok)
+						assertEqual(t, kv.expected, sVal)
+					}
 				}
 			})
 		}
@@ -242,6 +237,12 @@ func TestStandinColumns(t *testing.T) {
 
 		// Stand in from string constant to X and from S to Y
 		{{"X", "'Bar'", "Bar"}, {"Y", "S", "Foo"}},
+
+		// Stand in from float constant
+		{{"X", 1.5, 1.5}},
+
+		// Stand in from int constant, expect float because of Go JSON decoding in test case, leave like this for now.
+		{{"X", 2, 2.0}},
 	}
 
 	for _, format := range []string{"kv", "json"} {
@@ -250,16 +251,13 @@ func TestStandinColumns(t *testing.T) {
 				cache.insertCsv("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, input)
 				output := make([]map[string]interface{}, 0)
 				cache.queryJson("FOO", nil, "{}", &output)
-				assertEqualInts(t, 1, len(output))
+				assertEqual(t, 1, len(output))
 				for _, kv := range tc {
-					sVal, ok := output[0][kv.key].(string)
-					assertTrue(t, ok)
-					assertEqualStrings(t, kv.expected, sVal)
+					assertEqual(t, kv.expected, output[0][kv.key])
 				}
 			})
 		}
 	}
-
 }
 
 func TestFilter(t *testing.T) {
@@ -459,8 +457,7 @@ func TestQuery(t *testing.T) {
 - Meta data response headers (total length before slicing for example)
   X-QCache-unsliced-length
 - Compression
-- Standin columns
-  X-QCache-stand-in-columns: foo=10;bar=baz
+- Null stand ins?
 - Statistics, including memory stats
 - In filter with sub query
 - Viper for configuration management?

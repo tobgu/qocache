@@ -11,6 +11,7 @@ import (
 	qostrings "github.com/tobgu/qocache/strings"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,10 +29,25 @@ func headerToKeyValues(headers http.Header, headerName string) (map[string]inter
 	h := trim(headers.Get(headerName))
 	if strings.HasPrefix(h, "{") {
 		// Assume JSON dict
-		err := json.Unmarshal([]byte(h), &keyVals)
+		d := json.NewDecoder(strings.NewReader(h))
+		d.UseNumber()
+		err := d.Decode(&keyVals)
 		if err != nil {
 			err = fmt.Errorf("could not JSON decode content in header %s: %s. %s", headerName, h, err.Error())
 		}
+
+		for k, v := range keyVals {
+			if t, ok := v.(json.Number); ok {
+				if i, err := t.Int64(); err == nil {
+					keyVals[k] = int(i)
+				} else if f, err := t.Float64(); err == nil {
+					keyVals[k] = f
+				} else {
+					keyVals[k] = t.String()
+				}
+			}
+		}
+
 		return keyVals, err
 	}
 
@@ -43,6 +59,17 @@ func headerToKeyValues(headers http.Header, headerName string) (map[string]inter
 				return nil, fmt.Errorf("invalid key=value pair in X-QCache-keyVals: %s", kv)
 			}
 			keyVals[trim(kvSlice[0])] = trim(kvSlice[1])
+		}
+	}
+
+	for k, v := range keyVals {
+		s := v.(string)
+		if i, err := strconv.Atoi(s); err == nil {
+			keyVals[k] = i
+		} else if f, err := strconv.ParseFloat(s, 64); err == nil {
+			keyVals[k] = f
+		} else {
+			// No need to do anything
 		}
 	}
 
