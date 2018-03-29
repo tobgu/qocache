@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -24,8 +25,8 @@ func assertTrue(t *testing.T, val bool) {
 
 func assertEqual(t *testing.T, expected, actual interface{}) {
 	t.Helper()
-	if expected != actual {
-		t.Errorf("%v != %v", expected, actual)
+	if !reflect.DeepEqual(expected, actual) {
+		t.Fatalf("%v != %v", expected, actual)
 	}
 }
 
@@ -227,7 +228,6 @@ func TestInsertCsvWithTypes(t *testing.T) {
 }
 
 func TestStandinColumns(t *testing.T) {
-	// X-QCache-stand-in-columns: foo=10;bar=baz
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
 
@@ -258,6 +258,80 @@ func TestStandinColumns(t *testing.T) {
 			})
 		}
 	}
+}
+
+func enumTypes(enumVals map[string][]string) map[string]string {
+	result := make(map[string]string)
+	for k := range enumVals {
+		result[k] = "enum"
+	}
+	return result
+}
+
+func TestEnumSpecifications(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "Foo", I: 1}, {S: "Bar", I: 2}}
+
+	cases := []struct {
+		name     string
+		spec     map[string][]string
+		orderBy  string
+		expected []map[string]interface{}
+		skipJson bool
+	}{
+		{
+			name:     "No spec",
+			spec:     map[string][]string{},
+			orderBy:  "S",
+			expected: []map[string]interface{}{{"S": "Bar", "I": 2.0}, {"S": "Foo", "I": 1.0}}},
+		{
+			name:     "Spec string enum with non natural key order",
+			spec:     map[string][]string{"S": {"Foo", "Bar"}},
+			orderBy:  "S",
+			expected: []map[string]interface{}{{"S": "Foo", "I": 1.0}, {"S": "Bar", "I": 2.0}}},
+		{
+			name:     "Spec int enum with non natural key order",
+			spec:     map[string][]string{"I": {"2", "1"}},
+			orderBy:  "I",
+			expected: []map[string]interface{}{{"S": "Bar", "I": "2"}, {"S": "Foo", "I": "1"}},
+			// Making enums of integers does not (currently) work and since you cannot type
+			// spec JSON input the same way that you can with CSV there is no turn integers
+			// into a string/enum.
+			skipJson: true},
+	}
+
+	for _, inputFormat := range []string{"csv", "json"} {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("Format: %s: %s", inputFormat, tc.name), func(t *testing.T) {
+				jsonSpec, err := json.Marshal(tc.spec)
+				assertEqual(t, nil, err)
+
+				// For CSV the enum columns must be part of type specification
+				// in addition to the enum spec.
+				jsonTyp, err := json.Marshal(enumTypes(tc.spec))
+				assertEqual(t, nil, err)
+
+				headers := map[string]string{
+					"X-QCache-enum-specs": string(jsonSpec),
+					"X-QCache-types":      string(jsonTyp)}
+
+				key := "FOO"
+				if inputFormat == "json" {
+					if tc.skipJson {
+						return
+					}
+					cache.insertJson(key, headers, input)
+				} else {
+					cache.insertCsv(key, headers, input)
+				}
+
+				output := make([]map[string]interface{}, 0)
+				cache.queryJson(key, nil, fmt.Sprintf(`{"select": ["S", "I"], "order_by": ["%s"]}`, tc.orderBy), &output)
+				assertEqual(t, tc.expected, output)
+			})
+		}
+	}
+
 }
 
 func TestFilter(t *testing.T) {
@@ -454,9 +528,8 @@ func TestQuery(t *testing.T) {
 }
 
 /* TODO
+- Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Enum range specifications
-- Meta data response headers (total length before slicing for example)
-  X-QCache-unsliced-length
 - Compression
 - Null stand ins?
 - Statistics, including memory stats

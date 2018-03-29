@@ -93,12 +93,41 @@ func strIfToStrStr(m map[string]interface{}, err error) (map[string]string, erro
 	return result, nil
 }
 
+func readEnumSpec(headers http.Header) (map[string][]string, error) {
+	enumSpecJson := headers.Get("X-QCache-enum-specs")
+	if enumSpecJson == "" {
+		return nil, nil
+	}
+
+	result := map[string][]string{}
+	if err := json.Unmarshal([]byte(enumSpecJson), &result); err != nil {
+		return nil, fmt.Errorf("could not decode JSON content in X-QCache-enum-specs: %s", err.Error())
+	}
+
+	return result, nil
+}
+
 func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
 	typs, err := strIfToStrStr(headerToKeyValues(headers, "X-QCache-types"))
 	if err != nil {
 		return nil, err
 	}
-	return []qf.CsvConfigFunc{qf.Types(typs)}, nil
+
+	enumVals, err := readEnumSpec(headers)
+	if err != nil {
+		return nil, err
+	}
+
+	return []qf.CsvConfigFunc{qf.Types(typs), qf.EnumValues(enumVals)}, nil
+}
+
+func headersToJsonConfig(headers http.Header) ([]qf.ConfigFunc, error) {
+	enumVals, err := readEnumSpec(headers)
+	if err != nil {
+		return nil, err
+	}
+
+	return []qf.ConfigFunc{qf.Enums(enumVals)}, nil
 }
 
 func firstErr(errs ...error) error {
@@ -127,7 +156,13 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 
 		frame = qf.ReadCsv(r.Body, configFns...)
 	case "application/json":
-		frame = qf.ReadJson(r.Body)
+		configFns, err := headersToJsonConfig(r.Header)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		frame = qf.ReadJson(r.Body, configFns...)
 	default:
 		http.Error(w, "Unknown content type", http.StatusBadRequest)
 		return
@@ -150,7 +185,6 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 }
 
 func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) {
-	// TODO: Currently only works with string constants and columns, fix for int, float and bool
 	standIns, err := headerToKeyValues(headers, "X-QCache-stand-in-columns")
 	if err != nil {
 		return frame, err
