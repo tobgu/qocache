@@ -7,6 +7,7 @@ import (
 	"github.com/gocarina/gocsv"
 	"github.com/gorilla/mux"
 	h "github.com/tobgu/qocache/http"
+	"github.com/tobgu/qocache/statistics"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -111,6 +112,28 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q string
 	return rr
 }
 
+func (c *testCache) statistics() statistics.StatisticsData {
+	req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/statistics"), nil)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	c.app.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		c.t.Errorf("Wrong status code for statistics: got %v want %v", rr.Code, http.StatusOK)
+	}
+
+	stats := statistics.StatisticsData{}
+	err = json.Unmarshal(rr.Body.Bytes(), &stats)
+	if err != nil {
+		c.t.Fatal("Failed to unmarshal JSON stats")
+	}
+
+	return stats
+}
+
 func (c *testCache) queryJson(key string, headers map[string]string, q string, output interface{}) *httptest.ResponseRecorder {
 	if headers == nil {
 		headers = make(map[string]string)
@@ -169,6 +192,21 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	}
 
 	compareTestData(t, output, input)
+
+	// Check statistics
+	stats := cache.statistics()
+	assertEqual(t, 1000, stats.StatisticsBufferSize)
+	assertTrue(t, 0 < stats.StatisticsDuration && stats.StatisticsDuration < 1.0)
+	assertEqual(t, 1, stats.DatasetCount)
+	assertEqual(t, 1, stats.HitCount)
+	assertEqual(t, 1, len(stats.QueryDurations))
+	assertTrue(t, stats.QueryDurations[0] > 0)
+	assertEqual(t, 1, len(stats.StoreDurations))
+	assertTrue(t, stats.StoreDurations[0] > 0)
+	assertEqual(t, 1, len(stats.StoreRowCounts))
+	assertEqual(t, 1, stats.StoreRowCounts[0])
+	assertTrue(t, stats.CacheSize > 0)
+	assertEqual(t, 0, stats.MissCount)
 }
 
 func toKeyVals(kvs []keyValProperty, format string) string {
@@ -380,6 +418,9 @@ func TestQueryNonExistingKey(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("Unexpected status code: %v", rr.Code)
 	}
+
+	stats := cache.statistics()
+	assertEqual(t, 1, stats.MissCount)
 }
 
 func TestQueryWithOrderBy(t *testing.T) {
@@ -529,11 +570,13 @@ func TestQuery(t *testing.T) {
 
 /* TODO
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
-- Enum range specifications
-- Compression
+- Compression, just lz4 for now.
 - Null stand ins?
-- Statistics, including memory stats
+- Memory stats, NumGC, PauseTotalNs, HeapObjects, HeapAlloc, HeapSys - HeapReleased, Mallocs, Frees
 - In filter with sub query
 - Viper for configuration management?
 - logrus for logging?
+- Queries using POST rather than GET
+- Status endpoint
+- Set and read charset
 */

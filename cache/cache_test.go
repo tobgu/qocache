@@ -64,7 +64,8 @@ func TestMaxSizeIsRespected(t *testing.T) {
 	item := testItem{size: 100000}
 	c := cache.New(maxSize, 0)
 
-	for i := 0; i < 100; i++ {
+	insertCount := 100
+	for i := 0; i < insertCount; i++ {
 		err := c.Put(strconv.Itoa(i), item, item.ByteSize())
 		assertTrue(t, err == nil)
 	}
@@ -85,7 +86,9 @@ func TestMaxSizeIsRespected(t *testing.T) {
 	_, ok = c.Get("85")
 	assertFalse(t, ok)
 
-	assertTrue(t, stats.ItemCount == 14)
+	expectedCount := 14
+	assertTrue(t, stats.ItemCount == expectedCount)
+	assertTrue(t, stats.SizeEvictCount == insertCount-expectedCount)
 }
 
 func TestElementCannotBeInsertedLargerThanMaxSize(t *testing.T) {
@@ -112,7 +115,7 @@ func TestMaxAgeIsRespected(t *testing.T) {
 
 	stats := c.Stats()
 	assertTrue(t, stats.ItemCount == 1)
-	assertEquals(t, baseStats.ByteSize+253, stats.ByteSize)
+	assertEquals(t, baseStats.ByteSize+269, stats.ByteSize)
 
 	time.Sleep(1 * time.Millisecond)
 
@@ -123,6 +126,7 @@ func TestMaxAgeIsRespected(t *testing.T) {
 	stats = c.Stats()
 	assertTrue(t, stats.ItemCount == 0)
 	assertEquals(t, baseStats.ByteSize, stats.ByteSize)
+	assertEquals(t, 1, stats.AgeEvictCount)
 }
 
 func TestInsertOnAlreadyExistingKeyOverwritesExistingEntry(t *testing.T) {

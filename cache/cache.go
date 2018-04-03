@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 type Cache interface {
@@ -21,23 +22,24 @@ const mapEntrySize = 16 + 8 + 40
 const maxStatHistory = 1000
 
 type LruCache struct {
-	lock            *sync.Mutex              // 8 byte
-	keyMap          map[string]*list.Element // mapEntrySize / entry
-	lruList         *list.List               // 8 + 40 byte
-	maxSize         int                      // 8 byte
-	currentSize     int                      // 8 byte
-	maxAge          time.Duration            // 8 byte
-	timesToEviction []time.Duration          // 16 byte
-	lastStat        time.Time                // 8 byte
+	lock              *sync.Mutex
+	keyMap            map[string]*list.Element // mapEntrySize / entry
+	lruList           *list.List
+	maxSize           int
+	currentSize       int
+	maxAge            time.Duration
+	timesToEviction   []time.Duration
+	ageEvictionCount  int
+	sizeEvictionCount int
+	lastStat          time.Time
 }
 
 type cacheEntry struct {
 	// 40 byte overhead for the Element
-	item       interface{} // 16 byte
-	createTime time.Time   // 8 byte
-	key        string      // 16 byte + string length
-	size       int         // 8 byte
-	// ~ 88 byte + string length
+	item       interface{}
+	createTime time.Time
+	key        string
+	size       int
 }
 
 func newCacheEntry(key string, item interface{}, itemSize int) cacheEntry {
@@ -46,7 +48,7 @@ func newCacheEntry(key string, item interface{}, itemSize int) cacheEntry {
 		createTime: time.Now(),
 		key:        key,
 		// See struct definition for the reasoning behind the below numbers
-		size: 40 + 16 + 8 + 16 + 8 + len(key) + itemSize + mapEntrySize,
+		size: 40 + int(unsafe.Sizeof(cacheEntry{})) + len(key) + itemSize + mapEntrySize,
 	}
 }
 
@@ -71,6 +73,7 @@ func (c *LruCache) Put(key string, item interface{}, byteSize int) error {
 		if !removed {
 			return fmt.Errorf("cannot fit %d bytes in cache", newEntry.size)
 		}
+		c.sizeEvictionCount++
 	}
 
 	elem := c.lruList.PushFront(newEntry)
@@ -91,6 +94,7 @@ func (c *LruCache) Get(key string) (interface{}, bool) {
 	entry := elem.Value.(cacheEntry)
 	if entry.hasExpired(c.maxAge) {
 		c.remove(elem)
+		c.ageEvictionCount++
 		return nil, false
 	}
 
@@ -102,6 +106,8 @@ type CacheStats struct {
 	TimeToEviction []time.Duration
 	ByteSize       int
 	ItemCount      int
+	AgeEvictCount  int
+	SizeEvictCount int
 	StatDuration   time.Duration
 }
 
@@ -114,10 +120,12 @@ func (c *LruCache) Stats() CacheStats {
 		TimeToEviction: c.timesToEviction,
 		ByteSize:       c.currentSize,
 		ItemCount:      len(c.keyMap),
+		AgeEvictCount:  c.ageEvictionCount,
+		SizeEvictCount: c.sizeEvictionCount,
 		StatDuration:   lastStat.Sub(c.lastStat),
 	}
 	c.lastStat = lastStat
-	c.timesToEviction = make([]time.Duration, 0, len(c.timesToEviction))
+	c.timesToEviction = make([]time.Duration, 0, maxStatHistory)
 
 	return stat
 }
@@ -130,7 +138,7 @@ func (c *LruCache) remove(elem *list.Element) bool {
 
 	entry := elem.Value.(cacheEntry)
 	timeToEviction := time.Now().Sub(entry.createTime)
-	if len(c.timesToEviction) <= maxStatHistory {
+	if len(c.timesToEviction) < maxStatHistory {
 		c.timesToEviction = append(c.timesToEviction, timeToEviction)
 	}
 
@@ -156,7 +164,7 @@ func New(maxSize int, maxAge time.Duration) *LruCache {
 		maxSize: maxSize,
 		maxAge:  maxAge,
 		// Rough estimate of the overhead of this structure
-		currentSize: 60,
+		currentSize: int(unsafe.Sizeof(LruCache{})),
 		lastStat:    time.Now()}
 }
 
@@ -164,3 +172,4 @@ func New(maxSize int, maxAge time.Duration) *LruCache {
 // TODO: In addition to byte size make it possible to set a maxCount
 // TODO: Make maximum history size configurable
 // TODO: Move to own repo?
+// TODO: Count number of history entries that could not be written because of overflow

@@ -8,6 +8,7 @@ import (
 	"github.com/tobgu/qframe/filter"
 	"github.com/tobgu/qocache/cache"
 	"github.com/tobgu/qocache/query"
+	"github.com/tobgu/qocache/statistics"
 	qostrings "github.com/tobgu/qocache/strings"
 	"log"
 	"net/http"
@@ -16,8 +17,14 @@ import (
 	"time"
 )
 
+const (
+	contentTypeJson = "application/json"
+	contentTypeCsv  = "text/csv"
+)
+
 type application struct {
 	cache cache.Cache
+	stats *statistics.Statistics
 }
 
 func trim(s string) string {
@@ -141,13 +148,14 @@ func firstErr(errs ...error) error {
 }
 
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
+	statsProbe := a.stats.ProbeStore()
 	defer r.Body.Close()
 	vars := mux.Vars(r)
 	key := vars["key"]
 
 	var frame qf.QFrame
 	switch r.Header.Get("Content-Type") {
-	case "text/csv":
+	case contentTypeCsv:
 		configFns, err := headersToCsvConfig(r.Header)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -155,7 +163,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 		}
 
 		frame = qf.ReadCsv(r.Body, configFns...)
-	case "application/json":
+	case contentTypeJson:
 		configFns, err := headersToJsonConfig(r.Header)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -182,6 +190,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 
 	a.cache.Put(key, frame, frame.ByteSize())
 	w.WriteHeader(http.StatusCreated)
+	statsProbe.Success(frame.Len())
 }
 
 func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) {
@@ -210,11 +219,13 @@ func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) 
 }
 
 func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
+	statsProbe := a.stats.ProbeQuery()
 	vars := mux.Vars(r)
 	key := vars["key"]
 	item, ok := a.cache.Get(key)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+		statsProbe.Missing()
 		return
 	}
 	frame := item.(qf.QFrame)
@@ -234,9 +245,9 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", accept)
 
 	switch accept {
-	case "text/csv":
+	case contentTypeCsv:
 		err = frame.ToCsv(w)
-	case "application/json":
+	case contentTypeJson:
 		err = frame.ToJson(w, "records")
 	default:
 		http.Error(w, "Unknown accept type", http.StatusBadRequest)
@@ -247,16 +258,42 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 		// TODO: Investigate which errors that should panic
 		log.Fatalf("Failed writing JSON: %v", err)
 	}
+
+	statsProbe.Success()
 }
+
+func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
+	accept := r.Header.Get("Accept")
+	if accept == "" {
+		accept = contentTypeJson
+	}
+
+	if accept != contentTypeJson {
+		http.Error(w, fmt.Sprintf("Unknown accept type: %s, statistics only available in JSON format", accept), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", accept)
+	stats := a.stats.Stats()
+	enc := json.NewEncoder(w)
+	enc.Encode(stats)
+}
+
+// 	mw := chainMiddleware(withLogging, withTracing)
 
 func Application() *mux.Router {
 	// TODO make this configurable
-	app := application{cache: cache.New(1000000000, 24*time.Hour)}
+	maxStatSize := 1000
+	c := cache.New(1000000000, 24*time.Hour)
+	s := statistics.New(c, maxStatSize)
+	app := application{cache: c, stats: s}
 	r := mux.NewRouter()
 	// Mount on both qcache and qocache for compatibility with qcache
 	for _, root := range []string{"/qcache", "/qocache"} {
 		r.HandleFunc(root+"/dataset/{key}", app.newDataset).Methods("POST")
 		r.HandleFunc(root+"/dataset/{key}", app.queryDataset).Methods("GET")
+		r.HandleFunc(root+"/statistics", app.statistics).Methods("GET")
 	}
+
 	return r
 }
