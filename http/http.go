@@ -279,6 +279,10 @@ func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
 	enc.Encode(stats)
 }
 
+func (a *application) status(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("OK"))
+}
+
 // 	mw := chainMiddleware(withLogging, withTracing)
 
 func Application() *mux.Router {
@@ -293,6 +297,7 @@ func Application() *mux.Router {
 		r.HandleFunc(root+"/dataset/{key}", app.newDataset).Methods("POST")
 		r.HandleFunc(root+"/dataset/{key}", app.queryDataset).Methods("GET")
 		r.HandleFunc(root+"/statistics", app.statistics).Methods("GET")
+		r.HandleFunc(root+"/status", app.status).Methods("GET")
 	}
 
 	return r

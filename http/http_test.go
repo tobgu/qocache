@@ -134,6 +134,24 @@ func (c *testCache) statistics() statistics.StatisticsData {
 	return stats
 }
 
+func (c *testCache) status() {
+	req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/status"), nil)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	c.app.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		c.t.Errorf("Wrong status code for status: got %v want %v", rr.Code, http.StatusOK)
+	}
+
+	if rr.Body.String() != "OK" {
+		c.t.Fatalf("Unexpected status response: %s", rr.Body.String())
+	}
+}
+
 func (c *testCache) queryJson(key string, headers map[string]string, q string, output interface{}) *httptest.ResponseRecorder {
 	if headers == nil {
 		headers = make(map[string]string)
@@ -207,6 +225,11 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	assertEqual(t, 1, stats.StoreRowCounts[0])
 	assertTrue(t, stats.CacheSize > 0)
 	assertEqual(t, 0, stats.MissCount)
+}
+
+func TestStatus(t *testing.T) {
+	cache := newTestCache(t)
+	cache.status()
 }
 
 func toKeyVals(kvs []keyValProperty, format string) string {
@@ -572,11 +595,9 @@ func TestQuery(t *testing.T) {
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Compression, just lz4 for now.
 - Null stand ins?
-- Memory stats, NumGC, PauseTotalNs, HeapObjects, HeapAlloc, HeapSys - HeapReleased, Mallocs, Frees
 - In filter with sub query
 - Viper for configuration management?
 - logrus for logging?
 - Queries using POST rather than GET
-- Status endpoint
 - Set and read charset
 */
