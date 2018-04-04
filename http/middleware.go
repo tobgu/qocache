@@ -1,7 +1,6 @@
 package http
 
 import (
-	"log"
 	"net/http"
 )
 
@@ -20,22 +19,3 @@ func chainMiddleware(mw ...middleware) middleware {
 		}
 	}
 }
-
-func withLogging(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Logged connection from %s", r.RemoteAddr)
-		next.ServeHTTP(w, r)
-	}
-}
-
-func withTracing(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Tracing request for %s", r.RequestURI)
-		next.ServeHTTP(w, r)
-	}
-}
-
-// TODO:
-// - Compression and decompression using LZ4 (https://github.com/pierrec/lz4)
-// - Logging?
-// - statistics, query count, query duration, etc? Or should that rather be done in the specific functions?

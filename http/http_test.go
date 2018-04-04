@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"github.com/gorilla/mux"
+	"github.com/pierrec/lz4"
 	h "github.com/tobgu/qocache/http"
 	"github.com/tobgu/qocache/statistics"
 	"io"
@@ -50,6 +51,18 @@ func newTestCache(t testing.TB) *testCache {
 }
 
 func (c *testCache) insertDataset(key string, headers map[string]string, body io.Reader) *httptest.ResponseRecorder {
+	if headers["Content-Encoding"] == "lz4" {
+		pReader, pWriter := io.Pipe()
+		lz4Writer := lz4.NewWriter(pWriter)
+		origBody := body
+		body = pReader
+
+		go func() {
+			defer pWriter.Close()
+			lz4Writer.ReadFrom(origBody)
+		}()
+	}
+
 	req, err := http.NewRequest("POST", fmt.Sprintf("/qocache/dataset/%s", key), body)
 	if err != nil {
 		c.t.Fatal(err)
@@ -109,6 +122,22 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q string
 
 	rr := httptest.NewRecorder()
 	c.app.ServeHTTP(rr, req)
+
+	if headers["Accept-Encoding"] == "lz4" {
+		if rr.Header().Get("Content-Encoding") != "lz4" {
+			c.t.Fatal("Expected content to be lz4 encoded, was not")
+		}
+
+		lz4Reader := lz4.NewReader(rr.Body)
+		buf := new(bytes.Buffer)
+		_, err := buf.ReadFrom(lz4Reader)
+		if err != nil {
+			c.t.Fatal(err)
+		}
+
+		rr.Body = buf
+	}
+
 	return rr
 }
 
@@ -225,6 +254,25 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	assertEqual(t, 1, stats.StoreRowCounts[0])
 	assertTrue(t, stats.CacheSize > 0)
 	assertEqual(t, 0, stats.MissCount)
+}
+
+func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
+	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4"}, input)
+
+	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": "lz4"}, "{}")
+	if rr.Code != http.StatusOK {
+		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
+	}
+
+	var output []TestData
+	err := gocsv.Unmarshal(rr.Body, &output)
+	if err != nil {
+		t.Fatal("Failed to unmarshal CSV")
+	}
+
+	compareTestData(t, output, input)
 }
 
 func TestStatus(t *testing.T) {
@@ -593,7 +641,7 @@ func TestQuery(t *testing.T) {
 
 /* TODO
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
-- Compression, just lz4 for now.
+- Compression, bench perf impact
 - Null stand ins?
 - In filter with sub query
 - Viper for configuration management?
