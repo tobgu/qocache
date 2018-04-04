@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"github.com/tobgu/qocache/cache"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -91,20 +92,35 @@ func (s *Statistics) ProbeQuery() QueryProbe {
 	return QueryProbe{newProbe(s)}
 }
 
+// Memstats is basically a subset of runtime.GoMemStats
+type GoMemStats struct {
+	NumGC           uint32
+	NumForcedGC     uint32
+	PauseTotalNs    uint64
+	HeapObjects     uint64
+	HeapAlloc       uint64
+	HeapSys         uint64
+	HeapReleased    uint64
+	HeapSizeCurrent uint64 // HeapSys - HeapReleased
+	Mallocs         uint64
+	Frees           uint64
+}
+
 type StatisticsData struct {
-	DatasetCount           int       `json:"dataset_count"`
-	CacheSize              int       `json:"cache_size"`
-	HitCount               int       `json:"hit_count"`
-	MissCount              int       `json:"miss_count"`
-	SizeEvictCount         int       `json:"size_evict_count"`
-	AgeEvictCount          int       `json:"size_evict_count"`
-	StoreCount             int       `json:"store_count"`
-	StatisticsDuration     float64   `json:"statistics_duration"`
-	StatisticsBufferSize   int       `json:"statistics_buffer_size"`
-	StoreDurations         []float64 `json:"store_durations,omitempty"`
-	StoreRowCounts         []int     `json:"store_row_counts,omitempty"`
-	QueryDurations         []float64 `json:"query_durations,omitempty"`
-	DurationsUntilEviction []float64 `json:"durations_until_eviction,omitempty"`
+	DatasetCount           int        `json:"dataset_count"`
+	CacheSize              int        `json:"cache_size"`
+	HitCount               int        `json:"hit_count"`
+	MissCount              int        `json:"miss_count"`
+	SizeEvictCount         int        `json:"size_evict_count"`
+	AgeEvictCount          int        `json:"size_evict_count"`
+	StoreCount             int        `json:"store_count"`
+	StatisticsDuration     float64    `json:"statistics_duration"`
+	StatisticsBufferSize   int        `json:"statistics_buffer_size"`
+	StoreDurations         []float64  `json:"store_durations,omitempty"`
+	StoreRowCounts         []int      `json:"store_row_counts,omitempty"`
+	QueryDurations         []float64  `json:"query_durations,omitempty"`
+	DurationsUntilEviction []float64  `json:"durations_until_eviction,omitempty"`
+	GoMemStats             GoMemStats `json:"go_mem_stats"`
 }
 
 func durationsToSeconds(d []time.Duration) []float64 {
@@ -116,6 +132,7 @@ func durationsToSeconds(d []time.Duration) []float64 {
 }
 
 func (s *Statistics) Stats() StatisticsData {
+	memStats := getMemstats()
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -130,9 +147,27 @@ func (s *Statistics) Stats() StatisticsData {
 	stats.DurationsUntilEviction = durationsToSeconds(cs.TimeToEviction)
 	stats.StatisticsDuration = now.Sub(s.dataSince).Seconds()
 	stats.StatisticsBufferSize = s.bufferSize
+	stats.GoMemStats = memStats
 
 	s.data = newStatisticsData(s.bufferSize)
 	s.dataSince = now
 
 	return stats
+}
+
+func getMemstats() GoMemStats {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return GoMemStats{
+		NumGC:           m.NumGC,
+		NumForcedGC:     m.NumForcedGC,
+		PauseTotalNs:    m.PauseTotalNs,
+		HeapObjects:     m.HeapObjects,
+		HeapAlloc:       m.HeapAlloc,
+		HeapSys:         m.HeapSys,
+		HeapReleased:    m.HeapReleased,
+		HeapSizeCurrent: m.HeapSys - m.HeapReleased,
+		Mallocs:         m.Mallocs,
+		Frees:           m.Frees,
+	}
 }
