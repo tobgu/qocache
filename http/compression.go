@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bufio"
 	"github.com/pierrec/lz4"
 	"io"
 	"net/http"
@@ -29,7 +30,12 @@ func withLz4(next http.HandlerFunc) http.HandlerFunc {
 
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4") {
 			w.Header().Set("Content-Encoding", "lz4")
-			w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: lz4.NewWriter(w)}
+
+			// Want to buffer this to avoid calling CompressBlock on every write
+			const lz4MaxBlockSize = 4 << 20
+			lz4Writer := bufio.NewWriterSize(lz4.NewWriter(w), lz4MaxBlockSize)
+			w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: lz4Writer}
+			defer lz4Writer.Flush()
 		}
 
 		next.ServeHTTP(w, r)

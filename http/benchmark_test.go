@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/gocarina/gocsv"
+	"github.com/pierrec/lz4"
 	"io"
+	"math/rand"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -215,3 +219,125 @@ mark and sweep for datasets with strings in them...
 * Are forced GCs a good idea?
 * Can the GC be set tighter to avoid over allocating memory?
 */
+
+func (c *testCache) insertDatasetRaw(key string, headers map[string]string, body []byte) *httptest.ResponseRecorder {
+	req, err := http.NewRequest("POST", fmt.Sprintf("/qocache/dataset/%s", key), bytes.NewBuffer(body))
+	if err != nil {
+		c.t.Fatal(err)
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	rr := httptest.NewRecorder()
+	c.app.ServeHTTP(rr, req)
+	return rr
+}
+
+func (c *testCache) queryDatasetRaw(key string, headers map[string]string, q string) *httptest.ResponseRecorder {
+	q = url.QueryEscape(q)
+	req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/dataset/%s?q=%s", key, q), nil)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	rr := httptest.NewRecorder()
+	c.app.ServeHTTP(rr, req)
+	return rr
+}
+
+func isOdd(i int) bool {
+	return i&1 == 1
+}
+
+func createCsv(length, cardinality int) []byte {
+	data := make([]TestData, 0, length)
+
+	for i := 0; i < length; i++ {
+		n := i % cardinality
+		data = append(data, TestData{
+			S:  fmt.Sprintf("Test string %d", i),
+			I:  n,
+			F:  float64(n) + rand.Float64(),
+			B:  isOdd(n),
+			I2: n + n*1000000,
+			I3: n + n*1000})
+	}
+
+	b := new(bytes.Buffer)
+	b.ReadFrom(marshalToCsv(data))
+	return b.Bytes()
+}
+
+func BenchmarkLargeCsvInsert(b *testing.B) {
+	buf := createCsv(100000, 100)
+	cache := newTestCache(b)
+
+	b.Run("Uncompressed", func(b *testing.B) {
+		headers := map[string]string{"Content-Type": "text/csv"}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			cache.insertDatasetRaw("A", headers, buf)
+		}
+	})
+
+	b.Run("LZ4 compression", func(b *testing.B) {
+		dstBuf := new(bytes.Buffer)
+		lz4W := lz4.NewWriter(dstBuf)
+		lz4W.ReadFrom(bytes.NewReader(buf))
+		headers := map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4"}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			cache.insertDatasetRaw("A", headers, dstBuf.Bytes())
+		}
+	})
+
+	/*
+		go test -bench=BenchmarkLargeCsvInsert -run=^$ -benchtime=10s
+		BenchmarkLargeCsvInsert/Uncompressed-2         	     200	  79912976 ns/op	65309431 B/op	     470 allocs/op
+		BenchmarkLargeCsvInsert/LZ4_compression-2      	     200	  97315063 ns/op	81096318 B/op	     496 allocs/op
+
+		=> ~21% time overhead using LZ4 compression for this particular benchmark
+	*/
+}
+
+func BenchmarkLargeJsonGet(b *testing.B) {
+	buf := createCsv(100000, 100)
+	cache := newTestCache(b)
+	cache.insertDatasetRaw("A", map[string]string{"Content-Type": "text/csv"}, buf)
+
+	for _, acceptEncoding := range []string{"lz4", "none"} {
+		b.Run(acceptEncoding, func(b *testing.B) {
+			headers := map[string]string{"Accept": "application/json", "Accept-Encoding": acceptEncoding}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				rr := cache.queryDatasetRaw("A", headers, "")
+				if rr.Code != 200 {
+					b.Fatalf("Unexpected response code: %d, %s", rr.Code, rr.Body.String())
+				}
+
+				if len(rr.Body.Bytes()) <= 0 {
+					b.Fatal("Unexpected body len")
+				}
+			}
+		})
+	}
+	/*
+		BenchmarkLargeJsonGet/lz4-2         	     100	 104593598 ns/op	16492531 B/op	      68 allocs/op
+		BenchmarkLargeJsonGet/none-2        	     200	  67861708 ns/op	18801460 B/op	      71 allocs/op
+
+		=> ~53% time overhead using LZ4 compression for this particular benchmark. Most of that time is spent in
+		CompressBlock writing to the hash table.
+	*/
+}
