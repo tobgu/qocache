@@ -88,7 +88,7 @@ func benchmarkLargeCache(b *testing.B, buf *bytes.Reader) {
 				rr := cache.queryDataset(
 					fmt.Sprintf("FOO%d", j),
 					map[string]string{"Accept": "application/json"},
-					`{"where":  [">", "Qux", 99000]}`)
+					`{"where":  [">", "Qux", 99000]}`, "GET")
 
 				if rr.Code != http.StatusOK {
 					b.Errorf("Wrong query status code: got %v want %v", rr.Code, http.StatusOK)

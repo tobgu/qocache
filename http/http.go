@@ -10,6 +10,7 @@ import (
 	"github.com/tobgu/qocache/query"
 	"github.com/tobgu/qocache/statistics"
 	qostrings "github.com/tobgu/qocache/strings"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -218,7 +219,27 @@ func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) 
 	return frame, nil
 }
 
-func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
+func (a *application) queryDatasetGet(w http.ResponseWriter, r *http.Request) {
+	// The query is located in the URL
+	a.queryDataset(w, r, func(r *http.Request) (string, error) {
+		r.ParseForm()
+		return r.Form.Get("q"), nil
+	})
+}
+
+func (a *application) queryDatasetPost(w http.ResponseWriter, r *http.Request) {
+	// The query is located in the body
+	a.queryDataset(w, r, func(r *http.Request) (string, error) {
+		defer r.Body.Close()
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	})
+}
+
+func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn func(r *http.Request) (string, error)) {
 	statsProbe := a.stats.ProbeQuery()
 	vars := mux.Vars(r)
 	key := vars["key"]
@@ -229,9 +250,13 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	frame := item.(qf.QFrame)
-	var err error = nil
-	r.ParseForm()
-	if qstring := r.Form.Get("q"); qstring != "" {
+	qstring, err := qFn(r)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error reading query: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	if qstring != "" {
 		result := query.Query(frame, qstring)
 		if result.Err != nil {
 			http.Error(w, fmt.Sprintf("Error executing query: %s", result.Err.Error()), http.StatusBadRequest)
@@ -297,7 +322,8 @@ func Application() *mux.Router {
 
 	for _, root := range []string{"/qcache", "/qocache"} {
 		r.HandleFunc(root+"/dataset/{key}", mw(app.newDataset)).Methods("POST")
-		r.HandleFunc(root+"/dataset/{key}", mw(app.queryDataset)).Methods("GET")
+		r.HandleFunc(root+"/dataset/{key}/q", mw(app.queryDatasetPost)).Methods("POST")
+		r.HandleFunc(root+"/dataset/{key}", mw(app.queryDatasetGet)).Methods("GET")
 		r.HandleFunc(root+"/statistics", mw(app.statistics)).Methods("GET")
 		r.HandleFunc(root+"/status", mw(app.status)).Methods("GET")
 	}

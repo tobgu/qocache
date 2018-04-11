@@ -109,9 +109,19 @@ func (c *testCache) insertJson(key string, headers map[string]string, input inte
 	}
 }
 
-func (c *testCache) queryDataset(key string, headers map[string]string, q string) *httptest.ResponseRecorder {
-	q = url.QueryEscape(q)
-	req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/dataset/%s?q=%s", key, q), nil)
+func (c *testCache) queryDataset(key string, headers map[string]string, q, method string) *httptest.ResponseRecorder {
+	var urlString string
+	var body io.Reader
+	if method == "POST" {
+		urlString = fmt.Sprintf("/qocache/dataset/%s/q", key)
+		body = strings.NewReader(q)
+	} else {
+		// Assume GET
+		urlString = fmt.Sprintf("/qocache/dataset/%s?q=%s", key, url.QueryEscape(q))
+		body = nil
+	}
+
+	req, err := http.NewRequest(method, urlString, body)
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -181,13 +191,13 @@ func (c *testCache) status() {
 	}
 }
 
-func (c *testCache) queryJson(key string, headers map[string]string, q string, output interface{}) *httptest.ResponseRecorder {
+func (c *testCache) queryJson(key string, headers map[string]string, q, method string, output interface{}) *httptest.ResponseRecorder {
 	if headers == nil {
 		headers = make(map[string]string)
 	}
 
 	headers["Accept"] = "application/json"
-	rr := c.queryDataset(key, headers, q)
+	rr := c.queryDataset(key, headers, q, method)
 	if rr.Code != http.StatusOK {
 		return rr
 	}
@@ -222,7 +232,7 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
 	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv"}, input)
 
-	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}")
+	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}", "GET")
 	if rr.Code != http.StatusOK {
 		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
 	}
@@ -261,7 +271,7 @@ func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
 	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4"}, input)
 
-	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": "lz4"}, "{}")
+	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": "lz4"}, "{}", "GET")
 	if rr.Code != http.StatusOK {
 		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
 	}
@@ -269,7 +279,7 @@ func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 	var output []TestData
 	err := gocsv.Unmarshal(rr.Body, &output)
 	if err != nil {
-		t.Fatal("Failed to unmarshal CSV")
+		t.Fatalf("Failed to unmarshal CSV: %s", err.Error())
 	}
 
 	compareTestData(t, output, input)
@@ -322,7 +332,7 @@ func TestInsertCsvWithTypes(t *testing.T) {
 			t.Run(fmt.Sprintf("Types %s", toKeyVals(tc, format)), func(t *testing.T) {
 				cache.insertCsv("FOO", map[string]string{"X-QCache-types": toKeyVals(tc, format)}, input)
 				output := make([]map[string]interface{}, 0)
-				cache.queryJson("FOO", nil, "{}", &output)
+				cache.queryJson("FOO", nil, "{}", "GET", &output)
 				assertEqual(t, 1, len(output))
 				for _, kv := range tc {
 					if len(output) > 0 {
@@ -359,7 +369,7 @@ func TestStandinColumns(t *testing.T) {
 			t.Run(fmt.Sprintf("Types %s", toKeyVals(tc, format)), func(t *testing.T) {
 				cache.insertCsv("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, input)
 				output := make([]map[string]interface{}, 0)
-				cache.queryJson("FOO", nil, "{}", &output)
+				cache.queryJson("FOO", nil, "{}", "GET", &output)
 				assertEqual(t, 1, len(output))
 				for _, kv := range tc {
 					assertEqual(t, kv.expected, output[0][kv.key])
@@ -435,7 +445,7 @@ func TestEnumSpecifications(t *testing.T) {
 				}
 
 				output := make([]map[string]interface{}, 0)
-				cache.queryJson(key, nil, fmt.Sprintf(`{"select": ["S", "I"], "order_by": ["%s"]}`, tc.orderBy), &output)
+				cache.queryJson(key, nil, fmt.Sprintf(`{"select": ["S", "I"], "order_by": ["%s"]}`, tc.orderBy), "GET", &output)
 				assertEqual(t, tc.expected, output)
 			})
 		}
@@ -473,7 +483,7 @@ func TestFilter(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("Filter %s", tc.filter), func(t *testing.T) {
 			cache.insertJson("FOO", map[string]string{}, input)
-			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"where": %s}`, tc.filter), &output)
+			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"where": %s}`, tc.filter), "GET", &output)
 			if rr.Code != http.StatusOK {
 				t.Errorf("Unexpected status code: %v, body: %s", rr.Code, rr.Body.String())
 			}
@@ -485,7 +495,7 @@ func TestFilter(t *testing.T) {
 
 func TestQueryNonExistingKey(t *testing.T) {
 	cache := newTestCache(t)
-	rr := cache.queryJson("FOO", map[string]string{}, "{}", nil)
+	rr := cache.queryJson("FOO", map[string]string{}, "{}", "GET", nil)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("Unexpected status code: %v", rr.Code)
 	}
@@ -516,7 +526,7 @@ func TestQueryWithOrderBy(t *testing.T) {
 		t.Run(fmt.Sprintf("Order by %s", tc.orderBy), func(t *testing.T) {
 			output := []TestData{}
 			cache.insertJson("FOO", map[string]string{}, input)
-			cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"order_by": %s}`, tc.orderBy), &output)
+			cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"order_by": %s}`, tc.orderBy), "GET", &output)
 			compareTestData(t, output, tc.expected)
 		})
 	}
@@ -541,7 +551,7 @@ func TestQueryWithSlice(t *testing.T) {
 		t.Run(fmt.Sprintf("Slice %d %d", tc.offset, tc.limit), func(t *testing.T) {
 			output := []TestData{}
 			cache.insertJson("FOO", map[string]string{}, input)
-			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), &output)
+			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), "GET", &output)
 			assertEqual(t, fmt.Sprintf("%d", len(input)), rr.HeaderMap.Get("X-QCache-unsliced-length"))
 			compareTestData(t, output, tc.expected)
 		})
@@ -557,6 +567,7 @@ func TestQuery(t *testing.T) {
 		expected     []TestData
 		expectedCode int
 		headers      map[string]string
+		method       string
 	}{
 		{
 			name:     "Basic insert and query with empty query",
@@ -614,6 +625,13 @@ func TestQuery(t *testing.T) {
 			query:    `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`,
 			expected: []TestData{{I: 2}},
 		},
+		{
+			name:     "Sub query in POST",
+			input:    []TestData{{I: 1}, {I: 2}, {I: 3}},
+			query:    `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`,
+			expected: []TestData{{I: 2}},
+			method:   "POST",
+		},
 	}
 
 	for _, tc := range cases {
@@ -621,7 +639,10 @@ func TestQuery(t *testing.T) {
 			cache := newTestCache(t)
 			cache.insertJson("FOO", tc.headers, tc.input)
 			output := make([]TestData, 0)
-			rr := cache.queryJson("FOO", map[string]string{}, tc.query, &output)
+			if tc.method == "" {
+				tc.method = "GET"
+			}
+			rr := cache.queryJson("FOO", map[string]string{}, tc.query, tc.method, &output)
 
 			// Assume OK if code left out from test definition
 			if tc.expectedCode == 0 {
@@ -641,11 +662,10 @@ func TestQuery(t *testing.T) {
 
 /* TODO
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
-- Compression, bench perf impact
 - Null stand ins?
 - In filter with sub query
 - Viper for configuration management?
 - logrus for logging?
-- Queries using POST rather than GET
 - Set and read charset
+- Dependencies
 */
