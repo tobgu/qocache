@@ -18,5 +18,5 @@ func main() {
 		log.Fatalf("Configuration error: %s", err.Error())
 	}
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", c.Port), qhttp.Application()))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", c.Port), qhttp.Application(c)))
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/gocarina/gocsv"
 	"github.com/gorilla/mux"
 	"github.com/pierrec/lz4"
+	"github.com/tobgu/qocache/config"
 	h "github.com/tobgu/qocache/http"
 	"github.com/tobgu/qocache/statistics"
 	"io"
@@ -47,7 +48,7 @@ type testCache struct {
 }
 
 func newTestCache(t testing.TB) *testCache {
-	return &testCache{t: t, app: h.Application()}
+	return &testCache{t: t, app: h.Application(config.Config{Size: 1000000000, StatisticsBufferSize: 1000})}
 }
 
 func (c *testCache) insertDataset(key string, headers map[string]string, body io.Reader) *httptest.ResponseRecorder {

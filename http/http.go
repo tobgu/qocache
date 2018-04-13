@@ -7,6 +7,7 @@ import (
 	qf "github.com/tobgu/qframe"
 	"github.com/tobgu/qframe/filter"
 	"github.com/tobgu/qocache/cache"
+	"github.com/tobgu/qocache/config"
 	"github.com/tobgu/qocache/query"
 	"github.com/tobgu/qocache/statistics"
 	qostrings "github.com/tobgu/qocache/strings"
@@ -310,13 +311,12 @@ func (a *application) status(w http.ResponseWriter, r *http.Request) {
 
 // 	mw := chainMiddleware(withLogging, withTracing)
 
-func Application() *mux.Router {
-	// TODO make this configurable
-	maxStatSize := 1000
-	c := cache.New(1000000000, 24*time.Hour)
-	s := statistics.New(c, maxStatSize)
+func Application(conf config.Config) *mux.Router {
+	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
+	s := statistics.New(c, conf.StatisticsBufferSize)
 	app := application{cache: c, stats: s}
 	r := mux.NewRouter()
+
 	// Mount on both qcache and qocache for compatibility with qcache
 	mw := chainMiddleware(withLz4)
 
