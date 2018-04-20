@@ -462,6 +462,7 @@ func TestFilter(t *testing.T) {
 	cases := []struct {
 		filter   string
 		expected []TestData
+		input []TestData
 	}{
 		{
 			filter:   `[">", "I", 200]`,
@@ -479,11 +480,25 @@ func TestFilter(t *testing.T) {
 			filter:   `["<", "I", "I2"]`,
 			expected: []TestData{{I: 123, I2: 124}},
 		},
+		{
+			filter:   `["in", "I", [123, 200, 17]]`,
+			expected: []TestData{{I: 123, I2: 124}, {I: 200, I2: 124}},
+		},
+		{
+			filter:   `["in", "S", ["", "A", "B"]]`,
+			expected: []TestData{{S: ""}, {S: "A"}, {S: "B"}},
+			input: []TestData{{S: ""}, {S: "A"}, {S: "B"}, {S: "C"}},
+
+		},
+
 	}
 
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("Filter %s", tc.filter), func(t *testing.T) {
-			cache.insertJson("FOO", map[string]string{}, input)
+			if tc.input == nil {
+				tc.input = input
+			}
+			cache.insertCsv("FOO", map[string]string{"X-QCache-types": "S=string"}, tc.input)
 			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"where": %s}`, tc.filter), "GET", &output)
 			if rr.Code != http.StatusOK {
 				t.Errorf("Unexpected status code: %v, body: %s", rr.Code, rr.Body.String())
@@ -588,7 +603,7 @@ func TestQuery(t *testing.T) {
 		{
 			name:     "Distinct",
 			input:    []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "A", I: 2}, {S: "C", I: 1}},
-			query:    `{"distinct": ["S", "I"]}`,
+			query:    `{"distinct": ["S", "I"], "order_by": ["S", "I"]}`,
 			expected: []TestData{{S: "A", I: 1}, {S: "A", I: 2}, {S: "C", I: 1}}},
 		{
 			name:     "Group by without aggregation",
@@ -633,6 +648,7 @@ func TestQuery(t *testing.T) {
 			expected: []TestData{{I: 2}},
 			method:   "POST",
 		},
+		// TODO: Test "in" with subexpression
 	}
 
 	for _, tc := range cases {
@@ -665,7 +681,6 @@ func TestQuery(t *testing.T) {
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Null stand ins?
 - In filter with sub query
-- Viper for configuration management?
 - logrus for logging?
 - Set and read charset
 - Dependencies

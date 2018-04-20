@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	qf "github.com/tobgu/qframe"
-	"github.com/tobgu/qframe/aggregation"
 	"github.com/tobgu/qframe/filter"
 	qostrings "github.com/tobgu/qocache/strings"
 	"strings"
@@ -143,7 +142,7 @@ func (a alias) column() string {
 	return a.dstCol
 }
 
-type aggregations []aggregation.Aggregation
+type aggregations []qf.Aggregation
 
 func (as aggregations) Execute(grouper qf.Grouper) qf.QFrame {
 	return grouper.Aggregate(as...)
@@ -216,8 +215,8 @@ func createAlias(aliasExpr []interface{}) (alias, error) {
 	return alias{dstCol: dstCol, expr: expr}, expr.Err()
 }
 
-func createAggregation(expr []interface{}) (aggregation.Aggregation, error) {
-	noAgg := aggregation.Aggregation{}
+func createAggregation(expr []interface{}) (qf.Aggregation, error) {
+	noAgg := qf.Aggregation{}
 	if len(expr) != 2 {
 		return noAgg, fmt.Errorf("invalid aggregation expression, expected length 2, was: %v", expr)
 	}
@@ -232,7 +231,7 @@ func createAggregation(expr []interface{}) (aggregation.Aggregation, error) {
 		return noAgg, fmt.Errorf("aggregation column name must be a string, was: %v", expr[1])
 	}
 
-	return aggregation.New(aggFn, aggCol), nil
+	return qf.Aggregation{Fn: aggFn, Column: aggCol}, nil
 }
 
 func unMarshalOrderByClause(input []string) []qf.Order {
