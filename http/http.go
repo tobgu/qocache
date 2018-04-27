@@ -7,7 +7,7 @@ import (
 	qf "github.com/tobgu/qframe"
 	"github.com/tobgu/qframe/config/csv"
 	"github.com/tobgu/qframe/config/newqf"
-	"github.com/tobgu/qframe/filter"
+	"github.com/tobgu/qframe/types"
 	"github.com/tobgu/qocache/cache"
 	"github.com/tobgu/qocache/config"
 	"github.com/tobgu/qocache/query"
@@ -211,7 +211,7 @@ func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) 
 					standIn = qostrings.TrimQuotes(s)
 				} else {
 					// Column reference
-					standIn = filter.ColumnName(s)
+					standIn = types.ColumnName(s)
 				}
 			}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/tobgu/qframe/filter"
 	qostrings "github.com/tobgu/qocache/strings"
 	"strings"
+	"github.com/tobgu/qframe/types"
 )
 
 // TODO: It is possible that most of the functionality here would actually fit better in the QFrame
@@ -103,7 +104,7 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 			if qostrings.IsQuoted(s) {
 				arg = qostrings.TrimQuotes(s)
 			} else {
-				arg = filter.ColumnName(s)
+				arg = types.ColumnName(s)
 			}
 		}
 		c = qf.Filter(filter.Filter{Comparator: operator, Column: colName, Arg: arg})
@@ -221,7 +222,7 @@ func prepareAlias(a *interface{}) {
 			s := qostrings.TrimQuotes(t)
 			*a = s
 		} else {
-			*a = filter.ColumnName(t)
+			*a = types.ColumnName(t)
 		}
 	default:
 		// No need to do anything here
