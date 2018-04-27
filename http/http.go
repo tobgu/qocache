@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qframe/config/csv"
+	"github.com/tobgu/qframe/config/newqf"
 	"github.com/tobgu/qframe/filter"
 	"github.com/tobgu/qocache/cache"
 	"github.com/tobgu/qocache/config"
@@ -116,7 +118,7 @@ func readEnumSpec(headers http.Header) (map[string][]string, error) {
 	return result, nil
 }
 
-func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
+func headersToCsvConfig(headers http.Header) ([]csv.ConfigFunc, error) {
 	typs, err := strIfToStrStr(headerToKeyValues(headers, "X-QCache-types"))
 	if err != nil {
 		return nil, err
@@ -127,16 +129,16 @@ func headersToCsvConfig(headers http.Header) ([]qf.CsvConfigFunc, error) {
 		return nil, err
 	}
 
-	return []qf.CsvConfigFunc{qf.Types(typs), qf.EnumValues(enumVals)}, nil
+	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals)}, nil
 }
 
-func headersToJsonConfig(headers http.Header) ([]qf.ConfigFunc, error) {
+func headersToJsonConfig(headers http.Header) ([]newqf.ConfigFunc, error) {
 	enumVals, err := readEnumSpec(headers)
 	if err != nil {
 		return nil, err
 	}
 
-	return []qf.ConfigFunc{qf.Enums(enumVals)}, nil
+	return []newqf.ConfigFunc{newqf.Enums(enumVals)}, nil
 }
 
 func firstErr(errs ...error) error {
@@ -213,7 +215,7 @@ func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) 
 				}
 			}
 
-			frame = frame.Apply(qf.Instruction{Fn: standIn, DstCol: col})
+			frame = frame.Eval(col, qf.Val(standIn))
 		}
 	}
 

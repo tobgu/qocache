@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qframe/config/groupby"
 	"github.com/tobgu/qframe/filter"
 	qostrings "github.com/tobgu/qocache/strings"
 	"strings"
@@ -135,7 +136,7 @@ type alias struct {
 }
 
 func (a alias) execute(f qf.QFrame) qf.QFrame {
-	return f.Eval(a.dstCol, a.expr, nil)
+	return f.Eval(a.dstCol, a.expr)
 }
 
 func (a alias) column() string {
@@ -201,6 +202,32 @@ func unMarshalSelectClause(input interface{}) (selectClause, error) {
 	return selectClause{columns: columns, aggregations: aggregations, aliases: aliases}, nil
 }
 
+// Takes an alias expression as parsed from JSON and transforms it into a data
+// structure that can be interpreted as a QFrame expression. This mainly consists
+// of deciding which strings that represent columns and which that represent string
+// constants.
+func prepareAlias(a *interface{}) {
+	switch t := (*a).(type) {
+	case []interface{}:
+		for i := range t {
+			if i > 0 {
+				// Let the first element remain as is since it is the operator
+				prepareAlias(&t[i])
+			}
+		}
+	case string:
+		if qostrings.IsQuoted(t) {
+			// String constant
+			s := qostrings.TrimQuotes(t)
+			*a = s
+		} else {
+			*a = filter.ColumnName(t)
+		}
+	default:
+		// No need to do anything here
+	}
+}
+
 func createAlias(aliasExpr []interface{}) (alias, error) {
 	if len(aliasExpr) != 2 {
 		return alias{}, fmt.Errorf("invalid alias argument length, expected destination column and src expression, was: %v", aliasExpr)
@@ -211,7 +238,8 @@ func createAlias(aliasExpr []interface{}) (alias, error) {
 		return alias{}, fmt.Errorf("invalid alias destination column, was: %v", aliasExpr[0])
 	}
 
-	expr := qf.NewExpr(aliasExpr[1])
+	prepareAlias(&aliasExpr[1])
+	expr := qf.Val(aliasExpr[1])
 	return alias{dstCol: dstCol, expr: expr}, expr.Err()
 }
 
@@ -308,12 +336,12 @@ func (q query) query(f qf.QFrame) QueryResult {
 
 	newF := f.Filter(filterClause)
 	if len(q.GroupBy) > 0 || len(selectClause.aggregations) > 0 {
-		grouper := newF.GroupBy(qf.GroupBy(q.GroupBy...))
+		grouper := newF.GroupBy(groupby.Columns(q.GroupBy...))
 		newF = selectClause.aggregations.Execute(grouper)
 	}
 
 	if q.Distinct != nil {
-		newF = newF.Distinct(qf.GroupBy(q.Distinct...))
+		newF = newF.Distinct(groupby.Columns(q.Distinct...))
 	}
 
 	newF = newF.Sort(unMarshalOrderByClause(q.OrderBy)...)

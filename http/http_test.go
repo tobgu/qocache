@@ -462,7 +462,7 @@ func TestFilter(t *testing.T) {
 	cases := []struct {
 		filter   string
 		expected []TestData
-		input []TestData
+		input    []TestData
 	}{
 		{
 			filter:   `[">", "I", 200]`,
@@ -487,10 +487,8 @@ func TestFilter(t *testing.T) {
 		{
 			filter:   `["in", "S", ["", "A", "B"]]`,
 			expected: []TestData{{S: ""}, {S: "A"}, {S: "B"}},
-			input: []TestData{{S: ""}, {S: "A"}, {S: "B"}, {S: "C"}},
-
+			input:    []TestData{{S: ""}, {S: "A"}, {S: "B"}, {S: "C"}},
 		},
-
 	}
 
 	for _, tc := range cases {
