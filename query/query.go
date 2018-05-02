@@ -6,9 +6,9 @@ import (
 	qf "github.com/tobgu/qframe"
 	"github.com/tobgu/qframe/config/groupby"
 	"github.com/tobgu/qframe/filter"
+	"github.com/tobgu/qframe/types"
 	qostrings "github.com/tobgu/qocache/strings"
 	"strings"
-	"github.com/tobgu/qframe/types"
 )
 
 // TODO: It is possible that most of the functionality here would actually fit better in the QFrame

@@ -276,7 +276,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	case contentTypeCsv:
 		err = frame.ToCsv(w)
 	case contentTypeJson:
-		err = frame.ToJson(w, "records")
+		err = frame.ToJson(w)
 	default:
 		http.Error(w, "Unknown accept type", http.StatusBadRequest)
 		return
