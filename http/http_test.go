@@ -230,7 +230,7 @@ func compareTestData(t *testing.T, actual, expected []TestData) {
 
 func TestBasicInsertAndQueryCsv(t *testing.T) {
 	cache := newTestCache(t)
-	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
+	input := []TestData{{S: "Foo«ταБЬℓσ»", I: 123, F: 1.5, B: true}}
 	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv"}, input)
 
 	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}", "GET")
@@ -644,6 +644,20 @@ func TestQuery(t *testing.T) {
 			input:    []TestData{{I: 1}, {I: 2}, {I: 3}},
 			query:    `{"where": [">", "I", 1], "from": {"where": ["<", "I", 3]}}`,
 			expected: []TestData{{I: 2}},
+			method:   "POST",
+		},
+		{
+			name:     "Unicode GET",
+			input:    []TestData{{S: "ÅÄÖ"}, {S: "«ταБЬℓσ»"}, {S: "ABC"}},
+			query:    `{"where": ["=", "S", "'«ταБЬℓσ»'"]}`,
+			expected: []TestData{{S: "«ταБЬℓσ»"}},
+			method:   "GET",
+		},
+		{
+			name:     "Unicode POST",
+			input:    []TestData{{S: "ÅÄÖ"}, {S: "«ταБЬℓσ»"}, {S: "ABC"}},
+			query:    `{"where": ["=", "S", "'«ταБЬℓσ»'"]}`,
+			expected: []TestData{{S: "«ταБЬℓσ»"}},
 			method:   "POST",
 		},
 		// TODO: Test "in" with subexpression
