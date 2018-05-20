@@ -186,7 +186,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	frame, err := addStandInColumns(frame, r.Header)
+	frame, _, err := addStandInColumns(frame, r.Header)
 	if err = firstErr(err, frame.Err); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -197,12 +197,13 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	statsProbe.Success(frame.Len())
 }
 
-func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) {
+func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, bool, error) {
 	standIns, err := headerToKeyValues(headers, "X-QCache-stand-in-columns")
 	if err != nil {
-		return frame, err
+		return frame, false, err
 	}
 
+	columnAdded := false
 	for col, standIn := range standIns {
 		if !frame.Contains(col) {
 			if s, ok := standIn.(string); ok {
@@ -216,10 +217,11 @@ func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, error) 
 			}
 
 			frame = frame.Eval(col, qf.Val(standIn))
+			columnAdded = true
 		}
 	}
 
-	return frame, nil
+	return frame, columnAdded, nil
 }
 
 func (a *application) queryDatasetGet(w http.ResponseWriter, r *http.Request) {
@@ -257,6 +259,18 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error reading query: %s", err.Error()), http.StatusBadRequest)
 		return
+	}
+
+	frame, columnAdded, err := addStandInColumns(frame, r.Header)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error adding standin columns: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	if columnAdded {
+		// Need to replace existing frame in cache since the new one contains
+		// additional columns.
+		a.cache.Put(key, frame, frame.ByteSize())
 	}
 
 	if qstring != "" {
@@ -310,8 +324,6 @@ func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
 func (a *application) status(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
-
-// 	mw := chainMiddleware(withLogging, withTracing)
 
 func Application(conf config.Config) *mux.Router {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)

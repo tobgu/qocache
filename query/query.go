@@ -11,10 +11,6 @@ import (
 	"strings"
 )
 
-// TODO: It is possible that most of the functionality here would actually fit better in the QFrame
-//       Or even in an own, query, repository together with some of the query related functionality
-//       in QFrame.
-
 type query struct {
 	Select   interface{} `json:"select,omitempty"`
 	Where    interface{} `json:"where,omitempty"`

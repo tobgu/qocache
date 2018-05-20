@@ -367,9 +367,28 @@ func TestStandinColumns(t *testing.T) {
 
 	for _, format := range []string{"kv", "json"} {
 		for _, tc := range cases {
-			t.Run(fmt.Sprintf("Types %s", toKeyVals(tc, format)), func(t *testing.T) {
+			t.Run(fmt.Sprintf("Insert %s", toKeyVals(tc, format)), func(t *testing.T) {
 				cache.insertCsv("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, input)
 				output := make([]map[string]interface{}, 0)
+				cache.queryJson("FOO", nil, "{}", "GET", &output)
+				assertEqual(t, 1, len(output))
+				for _, kv := range tc {
+					assertEqual(t, kv.expected, output[0][kv.key])
+				}
+			})
+
+			t.Run(fmt.Sprintf("Query %s", toKeyVals(tc, format)), func(t *testing.T) {
+				cache.insertCsv("FOO", nil, input)
+				output := make([]map[string]interface{}, 0)
+				cache.queryJson("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, "{}", "GET", &output)
+				assertEqual(t, 1, len(output))
+				for _, kv := range tc {
+					assertEqual(t, kv.expected, output[0][kv.key])
+				}
+
+				// Same query again but this time without stand in columns,
+				// columns from previous query should remain.
+				output = make([]map[string]interface{}, 0)
 				cache.queryJson("FOO", nil, "{}", "GET", &output)
 				assertEqual(t, 1, len(output))
 				for _, kv := range tc {
@@ -693,7 +712,8 @@ func TestQuery(t *testing.T) {
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Null stand ins?
 - In filter with sub query
-- logrus for logging?
-- Set and read charset
+- Logging?
+- Set and read charset (UTF-8)
 - Dependencies
+- README
 */
