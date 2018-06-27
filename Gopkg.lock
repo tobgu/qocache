@@ -2,10 +2,10 @@
 
 
 [[projects]]
-  branch = "default"
-  name = "bitbucket.org/weberc2/fastcsv"
-  packages = ["."]
-  revision = "a6293b38cbf64e32a9ca25a51fc67b30fffa3137"
+  branch = "master"
+  name = "github.com/cheekybits/genny"
+  packages = ["generic"]
+  revision = "9127e812e1e9e501ce899a18121d316ecb52e4ba"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -53,17 +53,6 @@
   packages = ["."]
   revision = "c3beff4c2358b44d0493c7dda585e7db7ff28ae6"
   version = "v1.7.6"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/mailru/easyjson"
-  packages = [
-    ".",
-    "buffer",
-    "jlexer",
-    "jwriter"
-  ]
-  revision = "8b799c424f57fa123fc63a99d6383bc6e4c02578"
 
 [[projects]]
   branch = "master"
@@ -127,23 +116,35 @@
   name = "github.com/tobgu/qframe"
   packages = [
     ".",
-    "aggregation",
+    "config/csv",
+    "config/eval",
+    "config/groupby",
+    "config/newqf",
+    "config/sql",
     "errors",
     "filter",
     "function",
     "internal/bcolumn",
     "internal/column",
     "internal/ecolumn",
+    "internal/fastcsv",
     "internal/fcolumn",
-    "internal/hashgrouper",
+    "internal/grouper",
+    "internal/hash",
     "internal/icolumn",
     "internal/index",
     "internal/io",
+    "internal/io/sql",
+    "internal/maps",
+    "internal/math/float",
+    "internal/math/integer",
     "internal/scolumn",
+    "internal/sort",
     "internal/strings",
+    "internal/template",
     "types"
   ]
-  revision = "351aa99a37fce38dd704376e3dd7a905c38e27ac"
+  revision = "d4333c2740872e83a14b0a181f38cd3e6dda5245"
 
 [[projects]]
   branch = "master"
@@ -173,6 +174,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5865df146f79c1ff86db06e4ece84c1767ca8cce40c1243aa64e3781692e4f56"
+  inputs-digest = "bb301757f4a6aed7685354b654384d3f04a8b9f8be6a92e3e52985615628170d"
   solver-name = "gps-cdcl"
   solver-version = 1

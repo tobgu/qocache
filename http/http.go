@@ -166,7 +166,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		frame = qf.ReadCsv(r.Body, configFns...)
+		frame = qf.ReadCSV(r.Body, configFns...)
 	case contentTypeJson:
 		configFns, err := headersToJsonConfig(r.Header)
 		if err != nil {
@@ -174,7 +174,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		frame = qf.ReadJson(r.Body, configFns...)
+		frame = qf.ReadJSON(r.Body, configFns...)
 	default:
 		http.Error(w, "Unknown content type", http.StatusBadRequest)
 		return
@@ -288,9 +288,9 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 
 	switch accept {
 	case contentTypeCsv:
-		err = frame.ToCsv(w)
+		err = frame.ToCSV(w)
 	case contentTypeJson:
-		err = frame.ToJson(w)
+		err = frame.ToJSON(w)
 	default:
 		http.Error(w, "Unknown accept type", http.StatusBadRequest)
 		return
