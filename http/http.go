@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ type application struct {
 	cache cache.Cache
 	stats *statistics.Statistics
 }
+
+var charsetRegex = regexp.MustCompile("charset=([A-Za-z0-9_-]+)")
 
 func trim(s string) string {
 	return strings.Trim(s, " ")
@@ -151,6 +154,24 @@ func firstErr(errs ...error) error {
 	return nil
 }
 
+func parseContentType(h string) (string, string) {
+	result := strings.Split(h, ";")
+	if len(result) == 1 {
+		return strings.TrimSpace(h), ""
+	}
+
+	if len(result) >= 2 {
+		contentType, charset := strings.TrimSpace(result[0]), ""
+		match := charsetRegex.FindStringSubmatch(result[1])
+		if len(match) > 1 {
+			charset = match[1]
+		}
+		return contentType, charset
+	}
+
+	return "", ""
+}
+
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	statsProbe := a.stats.ProbeStore()
 	defer r.Body.Close()
@@ -158,7 +179,13 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	key := vars["key"]
 
 	var frame qf.QFrame
-	switch r.Header.Get("Content-Type") {
+	contentType, charset := parseContentType(r.Header.Get("Content-Type"))
+	if charset != "" && charset != "utf-8" {
+		http.Error(w, fmt.Sprintf("Unsupported charset: %s", charset), http.StatusBadRequest)
+		return
+	}
+
+	switch contentType {
 	case contentTypeCsv:
 		configFns, err := headersToCsvConfig(r.Header)
 		if err != nil {
@@ -224,6 +251,10 @@ func addStandInColumns(frame qf.QFrame, headers http.Header) (qf.QFrame, bool, e
 	return frame, columnAdded, nil
 }
 
+func formatContentType(ct string) string {
+	return fmt.Sprintf("%s; charset=utf-8", ct)
+}
+
 func (a *application) queryDatasetGet(w http.ResponseWriter, r *http.Request) {
 	// The query is located in the URL
 	a.queryDataset(w, r, func(r *http.Request) (string, error) {
@@ -283,8 +314,10 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 		w.Header().Set("X-QCache-unsliced-length", fmt.Sprintf("%d", result.UnslicedLen))
 	}
 
+	// This is a bit simplistic since we assume that only one content type
+	// is listed and not a prioritized . Good enough for now.
 	accept := r.Header.Get("Accept")
-	w.Header().Set("Content-Type", accept)
+	w.Header().Set("Content-Type", formatContentType(accept))
 
 	switch accept {
 	case contentTypeCsv:
@@ -315,7 +348,7 @@ func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", accept)
+	w.Header().Set("Content-Type", formatContentType(accept))
 	stats := a.stats.Stats()
 	enc := json.NewEncoder(w)
 	enc.Encode(stats)

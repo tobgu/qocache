@@ -79,18 +79,24 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 }
 
 func (c *testCache) insertCsv(key string, headers map[string]string, input interface{}) {
+	c.insertCsvWithExpectedCode(key, headers, input, http.StatusCreated)
+}
+
+func (c *testCache) insertCsvWithExpectedCode(key string, headers map[string]string, input interface{}, code int) {
 	if headers == nil {
 		headers = make(map[string]string)
 	}
 
-	headers["Content-Type"] = "text/csv"
+	if _, ok := headers["Content-Type"]; !ok {
+		headers["Content-Type"] = "text/csv; charset=utf-8"
+	}
 
 	b := new(bytes.Buffer)
 	gocsv.Marshal(input, b)
 	rr := c.insertDataset(key, headers, b)
 
-	if rr.Code != http.StatusCreated {
-		c.t.Errorf("handler returned wrong status code: got %v want %v: %s", rr.Code, http.StatusCreated, rr.Body.String())
+	if rr.Code != code {
+		c.t.Errorf("handler returned wrong status code: got %v want %v: %s", rr.Code, code, rr.Body.String())
 	}
 }
 
@@ -101,7 +107,10 @@ func (c *testCache) insertJson(key string, headers map[string]string, input inte
 
 	b := new(bytes.Buffer)
 	json.NewEncoder(b).Encode(input)
-	headers["Content-Type"] = "application/json"
+	if _, ok := headers["Content-Type"]; !ok {
+		headers["Content-Type"] = "application/json"
+	}
+
 	rr := c.insertDataset("FOO", headers, b)
 
 	// Check the status code is what we expect.
@@ -204,12 +213,13 @@ func (c *testCache) queryJson(key string, headers map[string]string, q, method s
 	}
 
 	contentType := rr.Header().Get("Content-Type")
-	if rr.Header().Get("Content-Type") != "application/json" {
+	if rr.Header().Get("Content-Type") != "application/json; charset=utf-8" {
 		c.t.Errorf("Wrong Content-type: %s", contentType)
 	}
 
 	err := json.NewDecoder(rr.Body).Decode(output)
 	if err != nil {
+		c.t.Fatalf("Failed to unmarshal JSON: %s", err.Error())
 		c.t.Fatalf("Failed to unmarshal JSON: %s", err.Error())
 	}
 
@@ -231,7 +241,7 @@ func compareTestData(t *testing.T, actual, expected []TestData) {
 func TestBasicInsertAndQueryCsv(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo«ταБЬℓσ»", I: 123, F: 1.5, B: true}}
-	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv"}, input)
+	cache.insertCsv("FOO", nil, input)
 
 	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}", "GET")
 	if rr.Code != http.StatusOK {
@@ -239,7 +249,7 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	}
 
 	contentType := rr.Header().Get("Content-Type")
-	if rr.Header().Get("Content-Type") != "text/csv" {
+	if rr.Header().Get("Content-Type") != "text/csv; charset=utf-8" {
 		t.Errorf("Wrong Content-type: %s", contentType)
 	}
 
@@ -535,6 +545,31 @@ func TestQueryNonExistingKey(t *testing.T) {
 
 	stats := cache.statistics()
 	assertEqual(t, 1, stats.MissCount)
+}
+
+func TestInsertWithContentType(t *testing.T) {
+	cache := newTestCache(t)
+	input := []TestData{{S: "Foo"}}
+	cases := []struct {
+		contentType  string
+		expectedCode int
+	}{
+		// Success
+		{contentType: "text/csv", expectedCode: http.StatusCreated},
+		{contentType: "text/csv; charset=utf-8", expectedCode: http.StatusCreated},
+		{contentType: "text/csv; otherparam=Foo", expectedCode: http.StatusCreated},
+
+		// Error
+		{contentType: "text/FOO", expectedCode: http.StatusBadRequest},
+		{contentType: "text/csv; charset=ISO-8859-1", expectedCode: http.StatusBadRequest},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("Insert with content type %s", tc.contentType), func(t *testing.T) {
+			cache.insertCsvWithExpectedCode("FOO", map[string]string{"Content-Type": tc.contentType}, input, tc.expectedCode)
+		})
+	}
+
 }
 
 func TestQueryWithOrderBy(t *testing.T) {
