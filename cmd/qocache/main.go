@@ -1,4 +1,4 @@
-package main
+package qocache
 
 import (
 	"fmt"
@@ -9,11 +9,7 @@ import (
 	qhttp "github.com/tobgu/qocache/http"
 )
 
-type Config struct {
-	Foo string `mapstructure:"foo"`
-}
-
-func main() {
+func Main() {
 	c, err := config.GetConfig()
 	if err != nil {
 		log.Fatalf("Configuration error: %s", err.Error())
