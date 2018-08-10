@@ -3,16 +3,7 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	qf "github.com/tobgu/qframe"
-	"github.com/tobgu/qframe/config/csv"
-	"github.com/tobgu/qframe/config/newqf"
-	"github.com/tobgu/qframe/types"
-	"github.com/tobgu/qocache/cache"
-	"github.com/tobgu/qocache/config"
-	"github.com/tobgu/qocache/query"
-	"github.com/tobgu/qocache/statistics"
-	qostrings "github.com/tobgu/qocache/strings"
+
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -20,6 +11,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gorilla/mux"
+	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qframe/config/csv"
+	"github.com/tobgu/qframe/config/newqf"
+	"github.com/tobgu/qframe/types"
+
+	"github.com/tobgu/qocache/cache"
+	"github.com/tobgu/qocache/config"
+	"github.com/tobgu/qocache/query"
+	"github.com/tobgu/qocache/statistics"
+	qostrings "github.com/tobgu/qocache/strings"
 )
 
 const (

@@ -3,12 +3,13 @@ package query
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	qf "github.com/tobgu/qframe"
 	"github.com/tobgu/qframe/config/groupby"
 	"github.com/tobgu/qframe/filter"
 	"github.com/tobgu/qframe/types"
 	qostrings "github.com/tobgu/qocache/strings"
-	"strings"
 )
 
 type query struct {

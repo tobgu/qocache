@@ -2,10 +2,11 @@ package http
 
 import (
 	"bufio"
-	"github.com/pierrec/lz4"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/pierrec/lz4"
 )
 
 type lz4ReaderCloserWrapper struct {

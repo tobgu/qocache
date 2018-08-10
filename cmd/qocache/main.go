@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/tobgu/qocache/config"
-	qhttp "github.com/tobgu/qocache/http"
 	"log"
 	"net/http"
+
+	"github.com/tobgu/qocache/config"
+	qhttp "github.com/tobgu/qocache/http"
 )
 
 type Config struct {
