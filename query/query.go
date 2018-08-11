@@ -12,7 +12,8 @@ import (
 	qostrings "github.com/tobgu/qocache/strings"
 )
 
-type query struct {
+// Query is used to execute a server-side QFrame query.
+type Query struct {
 	Select   interface{} `json:"select,omitempty"`
 	Where    interface{} `json:"where,omitempty"`
 	OrderBy  []string    `json:"order_by,omitempty"`
@@ -20,13 +21,38 @@ type query struct {
 	Distinct []string    `json:"distinct,omitempty"`
 	Offset   int         `json:"offset,omitempty"`
 	Limit    int         `json:"limit,omitempty"`
-	From     *query      `json:"from,omitempty"`
+	From     *Query      `json:"from,omitempty"`
 }
 
+// QueryResult contains a resulting QFrame along with
+// any errors that were encountered.
 type QueryResult struct {
 	Qframe      qf.QFrame
 	Err         error
 	UnslicedLen int
+}
+
+func NewQueryOfString(str string) (Query, error) {
+	q := Query{}
+	err := json.Unmarshal([]byte(str), &q)
+	return q, err
+}
+
+func MustNewQueryOfString(str string) Query {
+	q, err := NewQueryOfString(str)
+	if err != nil {
+		panic(err)
+	}
+	return q
+}
+
+func QueryWithString(f qf.QFrame, qString string) QueryResult {
+	q, err := NewQueryOfString(qString)
+	if err != nil {
+		return QueryResult{Err: err}
+	}
+
+	return q.query(f)
 }
 
 func unMarshalFilterClauses(input []interface{}) ([]qf.FilterClause, error) {
@@ -273,21 +299,6 @@ func unMarshalOrderByClause(input []string) []qf.Order {
 	return result
 }
 
-func newQuery(qString string) (query, error) {
-	q := query{}
-	err := json.Unmarshal([]byte(qString), &q)
-	return q, err
-}
-
-func Query(f qf.QFrame, qString string) QueryResult {
-	q, err := newQuery(qString)
-	if err != nil {
-		return QueryResult{Err: err}
-	}
-
-	return q.query(f)
-}
-
 func intMin(x, y int) int {
 	if x < y {
 		return x
@@ -296,7 +307,7 @@ func intMin(x, y int) int {
 	return y
 }
 
-func (q query) slice(f qf.QFrame) qf.QFrame {
+func (q Query) slice(f qf.QFrame) qf.QFrame {
 	stop := f.Len()
 	if q.Limit > 0 {
 		stop = intMin(stop, q.Offset+q.Limit)
@@ -305,7 +316,7 @@ func (q query) slice(f qf.QFrame) qf.QFrame {
 	return f.Slice(q.Offset, stop)
 }
 
-func (q query) query(f qf.QFrame) QueryResult {
+func (q Query) query(f qf.QFrame) QueryResult {
 	var err error
 	if q.From != nil {
 		result := q.From.query(f)

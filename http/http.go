@@ -308,7 +308,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	}
 
 	if qstring != "" {
-		result := query.Query(frame, qstring)
+		result := query.QueryWithString(frame, qstring)
 		if result.Err != nil {
 			http.Error(w, fmt.Sprintf("Error executing query: %s", result.Err.Error()), http.StatusBadRequest)
 			return
