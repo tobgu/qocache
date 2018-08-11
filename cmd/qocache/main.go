@@ -14,6 +14,8 @@ func Main() {
 	if err != nil {
 		log.Fatalf("Configuration error: %s", err.Error())
 	}
-
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", c.Port), qhttp.Application(c)))
+	address := fmt.Sprintf(":%d", c.Port)
+	logger := config.Logger()
+	logger.Infof("Qocache is listening @%s", address)
+	logger.Fatal(http.ListenAndServe(address, qhttp.Application(c)))
 }

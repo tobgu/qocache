@@ -745,6 +745,8 @@ func TestQuery(t *testing.T) {
 	}
 }
 
+func init() { config.SetupLogger("debug") }
+
 /* TODO
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Null stand ins?
