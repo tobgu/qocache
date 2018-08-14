@@ -19,10 +19,11 @@ import (
 */
 
 type Config struct {
-	Size                 int `mapstructure:"size"`
-	Port                 int `mapstructure:"port"`
-	Age                  int `mapstructure:"age"`
-	StatisticsBufferSize int `mapstructure:"statistics-buffer-size"`
+	Level                string `mapstructure:"level"`
+	Size                 int    `mapstructure:"size"`
+	Port                 int    `mapstructure:"port"`
+	Age                  int    `mapstructure:"age"`
+	StatisticsBufferSize int    `mapstructure:"statistics-buffer-size"`
 
 	/*
 		CertFile string
@@ -36,6 +37,7 @@ func init() {
 	viper.AddConfigPath(".")
 	viper.SetEnvPrefix("QOCACHE")
 	viper.AutomaticEnv()
+	addStringParameter("level", "l", "logging level [debug, info, warn]", "info")
 	addIntParameter("port", "p", "Port to bind to", 8888)
 	addIntParameter("size", "s", "Max cache size in bytes", 1000000000)
 	addIntParameter("age", "a", "Max age of cached item in seconds, 0 = never expire", 0)
@@ -65,5 +67,8 @@ func GetConfig() (Config, error) {
 
 	c := Config{}
 	err := viper.Unmarshal(&c)
-	return c, err
+	if err != nil {
+		return c, err
+	}
+	return c, SetupLogger(c.Level)
 }

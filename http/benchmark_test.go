@@ -3,14 +3,15 @@ package http_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/gocarina/gocsv"
-	"github.com/pierrec/lz4"
 	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/gocarina/gocsv"
+	"github.com/pierrec/lz4"
 )
 
 type TestDataStrings struct {

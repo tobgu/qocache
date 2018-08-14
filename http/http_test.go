@@ -4,12 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gocarina/gocsv"
-	"github.com/gorilla/mux"
-	"github.com/pierrec/lz4"
-	"github.com/tobgu/qocache/config"
-	h "github.com/tobgu/qocache/http"
-	"github.com/tobgu/qocache/statistics"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +11,14 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/gocarina/gocsv"
+	"github.com/gorilla/mux"
+	"github.com/pierrec/lz4"
+
+	"github.com/tobgu/qocache/config"
+	h "github.com/tobgu/qocache/http"
+	"github.com/tobgu/qocache/statistics"
 )
 
 func assertTrue(t *testing.T, val bool) {
@@ -742,6 +744,8 @@ func TestQuery(t *testing.T) {
 		})
 	}
 }
+
+func init() { config.SetupLogger("debug") }
 
 /* TODO
 - Fix integer JSON parsing for generic maps in tests, right now they become floats

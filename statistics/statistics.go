@@ -1,10 +1,11 @@
 package statistics
 
 import (
-	"github.com/tobgu/qocache/cache"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/tobgu/qocache/cache"
 )
 
 type Statistics struct {

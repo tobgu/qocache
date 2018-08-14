@@ -1,9 +1,10 @@
 package cache_test
 
 import (
-	"github.com/tobgu/qocache/cache"
 	"strconv"
 	"testing"
+
+	"github.com/tobgu/qocache/cache"
 )
 
 func BenchmarkCachePut(b *testing.B) {

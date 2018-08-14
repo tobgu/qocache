@@ -3,23 +3,26 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	qf "github.com/tobgu/qframe"
-	"github.com/tobgu/qframe/config/csv"
-	"github.com/tobgu/qframe/config/newqf"
-	"github.com/tobgu/qframe/types"
-	"github.com/tobgu/qocache/cache"
-	"github.com/tobgu/qocache/config"
-	"github.com/tobgu/qocache/query"
-	"github.com/tobgu/qocache/statistics"
-	qostrings "github.com/tobgu/qocache/strings"
+
 	"io/ioutil"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gorilla/mux"
+	qf "github.com/tobgu/qframe"
+	"github.com/tobgu/qframe/config/csv"
+	"github.com/tobgu/qframe/config/newqf"
+	"github.com/tobgu/qframe/types"
+	"go.uber.org/zap"
+
+	"github.com/tobgu/qocache/cache"
+	"github.com/tobgu/qocache/config"
+	"github.com/tobgu/qocache/query"
+	"github.com/tobgu/qocache/statistics"
+	qostrings "github.com/tobgu/qocache/strings"
 )
 
 const (
@@ -28,6 +31,7 @@ const (
 )
 
 type application struct {
+	log   *zap.SugaredLogger
 	cache cache.Cache
 	stats *statistics.Statistics
 }
@@ -305,7 +309,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	}
 
 	if qstring != "" {
-		result := query.Query(frame, qstring)
+		result := query.QueryWithString(frame, qstring)
 		if result.Err != nil {
 			http.Error(w, fmt.Sprintf("Error executing query: %s", result.Err.Error()), http.StatusBadRequest)
 			return
@@ -331,7 +335,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 
 	if err != nil {
 		// TODO: Investigate which errors that should panic
-		log.Fatalf("Failed writing JSON: %v", err)
+		a.log.Fatalf("Failed writing JSON: %v", err)
 	}
 
 	statsProbe.Success()
@@ -361,12 +365,12 @@ func (a *application) status(w http.ResponseWriter, r *http.Request) {
 func Application(conf config.Config) *mux.Router {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
-	app := application{cache: c, stats: s}
+	app := application{cache: c, stats: s, log: config.Logger()}
 	r := mux.NewRouter()
 
-	// Mount on both qcache and qocache for compatibility with qcache
-	mw := chainMiddleware(withLz4)
+	mw := chainMiddleware(getZapMiddleware(app.log), withLz4)
 
+	// Mount on both qcache and qocache for compatibility with qcache
 	for _, root := range []string{"/qcache", "/qocache"} {
 		r.HandleFunc(root+"/dataset/{key}", mw(app.newDataset)).Methods("POST")
 		r.HandleFunc(root+"/dataset/{key}/q", mw(app.queryDatasetPost)).Methods("POST")

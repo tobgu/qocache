@@ -1,10 +1,11 @@
 package cache_test
 
 import (
-	"github.com/tobgu/qocache/cache"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/tobgu/qocache/cache"
 )
 
 func assertTrue(t *testing.T, b bool) {
