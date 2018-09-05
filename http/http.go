@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,8 +29,9 @@ const (
 )
 
 type application struct {
-	cache cache.Cache
-	stats *statistics.Statistics
+	cache  cache.Cache
+	stats  *statistics.Statistics
+	logger *log.Logger
 }
 
 var charsetRegex = regexp.MustCompile("charset=([A-Za-z0-9_-]+)")
@@ -172,6 +174,16 @@ func parseContentType(h string) (string, string) {
 	return "", ""
 }
 
+func (a *application) log(msg string, params ...interface{}) string {
+	result := fmt.Sprintf(msg, params...)
+	a.logger.Println(result)
+	return result
+}
+
+func (a *application) badRequest(w http.ResponseWriter, msg string, params ...interface{}) {
+	http.Error(w, a.log(msg, params...), http.StatusBadRequest)
+}
+
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	statsProbe := a.stats.ProbeStore()
 	defer r.Body.Close()
@@ -181,7 +193,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	var frame qf.QFrame
 	contentType, charset := parseContentType(r.Header.Get("Content-Type"))
 	if charset != "" && charset != "utf-8" {
-		http.Error(w, fmt.Sprintf("Unsupported charset: %s", charset), http.StatusBadRequest)
+		a.badRequest(w, "Unsupported charset: %s", charset)
 		return
 	}
 
@@ -189,7 +201,7 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	case contentTypeCsv:
 		configFns, err := headersToCsvConfig(r.Header)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			a.badRequest(w, err.Error())
 			return
 		}
 
@@ -197,25 +209,24 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 	case contentTypeJson:
 		configFns, err := headersToJsonConfig(r.Header)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			a.badRequest(w, err.Error())
 			return
 		}
 
 		frame = qf.ReadJSON(r.Body, configFns...)
 	default:
-		http.Error(w, "Unknown content type", http.StatusBadRequest)
+		a.badRequest(w, "Unknown content type: %s", contentType)
 		return
 	}
 
 	if frame.Err != nil {
-		errorMsg := fmt.Sprintf("Could not decode data: %v", frame.Err)
-		http.Error(w, errorMsg, http.StatusBadRequest)
+		a.badRequest(w, "Could not decode data: %v", frame.Err)
 		return
 	}
 
 	frame, _, err := addStandInColumns(frame, r.Header)
 	if err = firstErr(err, frame.Err); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		a.badRequest(w, err.Error())
 		return
 	}
 
@@ -288,13 +299,13 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	frame := item.(qf.QFrame)
 	qstring, err := qFn(r)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error reading query: %s", err.Error()), http.StatusBadRequest)
+		a.badRequest(w, "Error reading query: %s", err.Error())
 		return
 	}
 
 	frame, columnAdded, err := addStandInColumns(frame, r.Header)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error adding standin columns: %s", err.Error()), http.StatusBadRequest)
+		a.badRequest(w, "Error adding standin columns: %s", err.Error())
 		return
 	}
 
@@ -307,7 +318,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	if qstring != "" {
 		result := query.Query(frame, qstring)
 		if result.Err != nil {
-			http.Error(w, fmt.Sprintf("Error executing query: %s", result.Err.Error()), http.StatusBadRequest)
+			a.badRequest(w, "Error executing query: %s", result.Err.Error())
 			return
 		}
 		frame = result.Qframe
@@ -325,7 +336,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	case contentTypeJson:
 		err = frame.ToJSON(w)
 	default:
-		http.Error(w, "Unknown accept type", http.StatusBadRequest)
+		a.badRequest(w, "Unknown accept type: %s", accept)
 		return
 	}
 
@@ -344,7 +355,7 @@ func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if accept != contentTypeJson {
-		http.Error(w, fmt.Sprintf("Unknown accept type: %s, statistics only available in JSON format", accept), http.StatusBadRequest)
+		a.badRequest(w, "Unknown accept type: %s, statistics only available in JSON format", accept)
 		return
 	}
 
@@ -361,7 +372,7 @@ func (a *application) status(w http.ResponseWriter, r *http.Request) {
 func Application(conf config.Config) *mux.Router {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
-	app := application{cache: c, stats: s}
+	app := application{cache: c, stats: s, logger: log.New(os.Stderr, "qocache", log.LstdFlags)}
 	r := mux.NewRouter()
 
 	// Mount on both qcache and qocache for compatibility with qcache

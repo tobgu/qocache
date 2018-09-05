@@ -7,3 +7,6 @@ fmt:
 
 vet:
 	go vet ./...
+
+build:
+	go build github.com/tobgu/qocache/cmd/qocache

@@ -18,5 +18,6 @@ func main() {
 		log.Fatalf("Configuration error: %s", err.Error())
 	}
 
+	log.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", c.Port), qhttp.Application(c)))
 }

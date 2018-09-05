@@ -112,7 +112,7 @@ type StatisticsData struct {
 	HitCount               int        `json:"hit_count"`
 	MissCount              int        `json:"miss_count"`
 	SizeEvictCount         int        `json:"size_evict_count"`
-	AgeEvictCount          int        `json:"size_evict_count"`
+	AgeEvictCount          int        `json:"age_evict_count"`
 	StoreCount             int        `json:"store_count"`
 	StatisticsDuration     float64    `json:"statistics_duration"`
 	StatisticsBufferSize   int        `json:"statistics_buffer_size"`

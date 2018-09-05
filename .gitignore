@@ -3,3 +3,4 @@ qocache
 *.test
 *.out
 *.prof
+.idea
