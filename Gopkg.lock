@@ -56,6 +56,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/mauricelam/genny"
+  packages = ["generic"]
+  revision = "eb2c5232c885956af3565a20ecf48555cab2b9bc"
+
+[[projects]]
+  branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
@@ -144,7 +150,7 @@
     "internal/template",
     "types"
   ]
-  revision = "d4333c2740872e83a14b0a181f38cd3e6dda5245"
+  revision = "9b66547f7f2785e9c8aa1bb4c74a441f68ba0f61"
 
 [[projects]]
   branch = "master"
