@@ -85,8 +85,8 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 		}
 		c = qf.Not(subClause)
 	default: // Comparisons: <, >, =, ...
-		if len(clause) != 3 {
-			return c, fmt.Errorf("invalid filter clause length, expected [operator, column, value], was: %v", clause)
+		if len(clause) != 3 && len(clause) != 2 {
+			return c, fmt.Errorf("invalid filter clause length, expected [operator, column, value] or [operator, column], was: %v", clause)
 		}
 
 		colName, ok := clause[1].(string)
@@ -94,15 +94,20 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 			return c, fmt.Errorf("invalid column name, expected string, was: %v", clause[1])
 		}
 
-		var arg = clause[2]
-		if s, ok := arg.(string); ok {
-			// Quoted strings are string constants, other strings are column names
-			if qostrings.IsQuoted(s) {
-				arg = qostrings.TrimQuotes(s)
-			} else {
-				arg = types.ColumnName(s)
+		var arg interface{} = nil
+
+		if len(clause) == 3 {
+			arg = clause[2]
+			if s, ok := arg.(string); ok {
+				// Quoted strings are string constants, other strings are column names
+				if qostrings.IsQuoted(s) {
+					arg = qostrings.TrimQuotes(s)
+				} else {
+					arg = types.ColumnName(s)
+				}
 			}
 		}
+
 		c = qf.Filter(filter.Filter{Comparator: operator, Column: colName, Arg: arg})
 	}
 

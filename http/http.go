@@ -134,7 +134,7 @@ func headersToCsvConfig(headers http.Header) ([]csv.ConfigFunc, error) {
 		return nil, err
 	}
 
-	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals)}, nil
+	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals), csv.EmptyNull(true)}, nil
 }
 
 func headersToJsonConfig(headers http.Header) ([]newqf.ConfigFunc, error) {

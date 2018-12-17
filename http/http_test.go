@@ -220,7 +220,6 @@ func (c *testCache) queryJson(key string, headers map[string]string, q, method s
 	err := json.NewDecoder(rr.Body).Decode(output)
 	if err != nil {
 		c.t.Fatalf("Failed to unmarshal JSON: %s", err.Error())
-		c.t.Fatalf("Failed to unmarshal JSON: %s", err.Error())
 	}
 
 	return rr
@@ -487,7 +486,6 @@ func TestFilter(t *testing.T) {
 	// TODO: Test error cases
 	cache := newTestCache(t)
 	input := []TestData{{I: 123, I2: 124}, {I: 200, I2: 124}, {I: 223, I2: 124}}
-	output := []TestData{}
 	cases := []struct {
 		filter   string
 		expected []TestData
@@ -514,9 +512,14 @@ func TestFilter(t *testing.T) {
 			expected: []TestData{{I: 123, I2: 124}, {I: 200, I2: 124}},
 		},
 		{
-			filter:   `["in", "S", ["", "A", "B"]]`,
-			expected: []TestData{{S: ""}, {S: "A"}, {S: "B"}},
+			filter:   `["in", "S", ["A", "B"]]`,
+			expected: []TestData{{S: "A"}, {S: "B"}},
 			input:    []TestData{{S: ""}, {S: "A"}, {S: "B"}, {S: "C"}},
+		},
+		{
+			filter:   `["isnull", "S"]`,
+			expected: []TestData{{S: ""}},
+			input:    []TestData{{S: "A"}, {S: ""}, {S: "B"}, {S: "C"}},
 		},
 	}
 
@@ -526,6 +529,7 @@ func TestFilter(t *testing.T) {
 				tc.input = input
 			}
 			cache.insertCsv("FOO", map[string]string{"X-QCache-types": "S=string"}, tc.input)
+			output := []TestData{}
 			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"where": %s}`, tc.filter), "GET", &output)
 			if rr.Code != http.StatusOK {
 				t.Errorf("Unexpected status code: %v, body: %s", rr.Code, rr.Body.String())
@@ -573,6 +577,7 @@ func TestInsertWithContentType(t *testing.T) {
 }
 
 func TestQueryWithOrderBy(t *testing.T) {
+	// TODO: Sort with null values
 	cache := newTestCache(t)
 	input := []TestData{{S: "A", I: 2}, {S: "A", I: 1}, {S: "B", I: 3}}
 
@@ -748,7 +753,6 @@ func TestQuery(t *testing.T) {
 - Null stand ins?
 - In filter with sub query
 - Logging?
-- Set and read charset (UTF-8)
 - Dependencies
 - README
 */
