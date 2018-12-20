@@ -108,6 +108,11 @@ func unMarshalFilterClause(input interface{}) (qf.FilterClause, error) {
 			}
 		}
 
+		if operator == "==" {
+			// For compatibility with QCache
+			operator = "="
+		}
+
 		c = qf.Filter(filter.Filter{Comparator: operator, Column: colName, Arg: arg})
 	}
 

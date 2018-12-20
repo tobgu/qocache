@@ -496,6 +496,14 @@ func TestFilter(t *testing.T) {
 			expected: []TestData{{I: 223, I2: 124}},
 		},
 		{
+			filter:   `["=", "I", 200]`,
+			expected: []TestData{{I: 200, I2: 124}},
+		},
+		{
+			filter:   `["==", "I", 200]`,
+			expected: []TestData{{I: 200, I2: 124}},
+		},
+		{
 			filter:   `["!", [">", "I", 199]]`,
 			expected: []TestData{{I: 123, I2: 124}},
 		},
