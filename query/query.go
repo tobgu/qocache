@@ -273,9 +273,9 @@ func unMarshalOrderByClause(input []string) []qf.Order {
 	result := make([]qf.Order, len(input))
 	for i, s := range input {
 		if strings.HasPrefix(s, "-") {
-			result[i] = qf.Order{Column: s[1:], Reverse: true}
+			result[i] = qf.Order{Column: s[1:], Reverse: true, NullLast: true}
 		} else {
-			result[i] = qf.Order{Column: s, Reverse: false}
+			result[i] = qf.Order{Column: s, Reverse: false, NullLast: true}
 		}
 	}
 
