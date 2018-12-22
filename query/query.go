@@ -306,12 +306,27 @@ func intMin(x, y int) int {
 }
 
 func (q query) slice(f qf.QFrame) qf.QFrame {
-	stop := f.Len()
-	if q.Limit > 0 {
-		stop = intMin(stop, q.Offset+q.Limit)
+	if q.Offset < 0 {
+		f.Err = fmt.Errorf("offset must not be negative, was: %d", q.Offset)
+		return f
 	}
 
-	return f.Slice(q.Offset, stop)
+	if q.Limit < 0 {
+		f.Err = fmt.Errorf("limit must not be negative, was: %d", q.Limit)
+		return f
+	}
+
+	offset := q.Offset
+	if offset > f.Len() {
+		offset = f.Len()
+	}
+
+	stop := f.Len()
+	if q.Limit > 0 {
+		stop = intMin(offset + q.Limit, f.Len())
+	}
+
+	return f.Slice(offset, stop)
 }
 
 func (q query) query(f qf.QFrame) QueryResult {

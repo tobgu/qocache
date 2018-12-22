@@ -621,11 +621,16 @@ func TestQueryWithSlice(t *testing.T) {
 		offset   int
 		limit    int
 		expected []TestData
+		expectedStatusCode int
 	}{
 		{offset: 0, limit: 0, expected: []TestData{{S: "A"}, {S: "B"}, {S: "C"}}},
 		{offset: 0, limit: 5, expected: []TestData{{S: "A"}, {S: "B"}, {S: "C"}}},
+		{offset: 1, limit: 5, expected: []TestData{{S: "B"}, {S: "C"}}},
 		{offset: 1, limit: 0, expected: []TestData{{S: "B"}, {S: "C"}}},
 		{offset: 0, limit: 2, expected: []TestData{{S: "A"}, {S: "B"}}},
+		{offset: 5, limit: 10, expected: []TestData{}},
+		{offset: -1, limit: 3, expectedStatusCode: http.StatusBadRequest},
+		{offset: 1, limit: -1, expectedStatusCode: http.StatusBadRequest},
 	}
 
 	for _, tc := range cases {
@@ -633,11 +638,19 @@ func TestQueryWithSlice(t *testing.T) {
 			output := []TestData{}
 			cache.insertJson("FOO", map[string]string{}, input)
 			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), "GET", &output)
-			assertEqual(t, fmt.Sprintf("%d", len(input)), rr.HeaderMap.Get("X-QCache-unsliced-length"))
-			compareTestData(t, output, tc.expected)
+			if tc.expectedStatusCode == 0 {
+				assertEqual(t, fmt.Sprintf("%d", len(input)), rr.HeaderMap.Get("X-QCache-unsliced-length"))
+				compareTestData(t, output, tc.expected)
+				tc.expectedStatusCode = http.StatusOK
+			}
+
+			if rr.Code != tc.expectedStatusCode{
+				t.Errorf("Unexpected status code, actual: %d, expected: %d", rr.Code, tc.expectedStatusCode)
+			}
 		})
 	}
 }
+
 
 func TestQuery(t *testing.T) {
 	// Various basic query test cases following the same pattern
