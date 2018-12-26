@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+const lz4MaxBlockSize = 4 << 20
+
 type lz4ReaderCloserWrapper struct {
 	io.Reader
 	io.Closer
@@ -32,10 +34,12 @@ func withLz4(next http.HandlerFunc) http.HandlerFunc {
 			w.Header().Set("Content-Encoding", "lz4")
 
 			// Want to buffer this to avoid calling CompressBlock on every write
-			const lz4MaxBlockSize = 4 << 20
-			lz4Writer := bufio.NewWriterSize(lz4.NewWriter(w), lz4MaxBlockSize)
-			w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: lz4Writer}
-			defer lz4Writer.Flush()
+			lz4Writer := lz4.NewWriter(w)
+			bufferedWriter := bufio.NewWriterSize(lz4Writer, lz4MaxBlockSize)
+			w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: bufferedWriter}
+
+			defer lz4Writer.Close()
+			defer bufferedWriter.Flush()
 		}
 
 		next.ServeHTTP(w, r)
