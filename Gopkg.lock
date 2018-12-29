@@ -68,15 +68,12 @@
 
 [[projects]]
   name = "github.com/pierrec/lz4"
-  packages = ["."]
-  revision = "2fcda4cb7018ce05a25959d2fe08c83e3329f169"
-  version = "v1.1"
-
-[[projects]]
-  name = "github.com/pierrec/xxHash"
-  packages = ["xxHash32"]
-  revision = "f051bb7f1d1aaf1b5a665d74fb6b0217712c69f7"
-  version = "v0.1.1"
+  packages = [
+    ".",
+    "internal/xxh32"
+  ]
+  revision = "635575b42742856941dbc767b44905bb9ba083f6"
+  version = "v2.0.7"
 
 [[projects]]
   name = "github.com/spf13/afero"
@@ -175,6 +172,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bb301757f4a6aed7685354b654384d3f04a8b9f8be6a92e3e52985615628170d"
+  inputs-digest = "b5b82caa350011814432603dbf2871d376d9297291a542988c3ac13d8cfda9d1"
   solver-name = "gps-cdcl"
   solver-version = 1
