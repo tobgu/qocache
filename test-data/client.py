@@ -33,7 +33,7 @@ def post_data(data_type, headers, data, orig_size):
 
 def get_data(data_type, headers, orig_size):
     t0 = time.time()
-    resp = client.get("test-key", {}, query_headers=headers)
+    resp = client.get("test-key", {"limit": 1}, query_headers=headers)
     print("Get duration {} {}: {}".format(data_type, orig_size, time.time() - t0))
     return resp
 
@@ -60,6 +60,26 @@ def block_compressed_benchmark(data):
     t0 = time.time()
     lz4.block.decompress(compressed_data)
     print("Python block decompress duration {}: {}".format(len(compressed_data), time.time() - t0))
+
+
+def block_compressed_post_load(data):
+    compressed_data = lz4.block.compress(data)
+    size = len(data)
+
+    post_headers = {'Content-Encoding': 'lz4'}
+
+    while True:
+        post_data("block-compressed-load", post_headers, compressed_data, size)
+
+
+def block_compressed_get_load(data):
+    compressed_data = lz4.block.compress(data)
+    size = len(data)
+
+    post_headers = {'Content-Encoding': 'lz4'}
+    post_data("block-compressed-load", post_headers, compressed_data, size)
+    while True:
+        get_data("block-compressed", {"Accept-Encoding": "lz4"}, size)
 
 
 def frame_compressed_benchmark(data):
@@ -117,14 +137,19 @@ def compress_decompress_benchmark(data):
     print("Frame decompress no size duration {}: {}".format(len(data), time.time() - t0))
 
 
-sizes = (1000, 100000, 10000000)
-for s in sizes:
-    print(f"\n----- {s} -----")
-    csv_data = generate_csv(s)
-    block_compressed_benchmark(csv_data)
-#    frame_compressed_benchmark(csv_data)
-    uncompressed_benchmark(csv_data)
-#    compress_decompress_benchmark(csv_data)
+if False:
+    sizes = (1000, 100000, 10000000)
+    for s in sizes:
+        print(f"\n----- {s} -----")
+        csv_data = generate_csv(s)
+        block_compressed_benchmark(csv_data)
+    #    frame_compressed_benchmark(csv_data)
+        uncompressed_benchmark(csv_data)
+    #    compress_decompress_benchmark(csv_data)
+
+if True:
+    csv_data = generate_csv(10000)
+    block_compressed_get_load(csv_data)
 
 # ----- 1000 -----
 # Block compress duration 1016: 3.4809112548828125e-05

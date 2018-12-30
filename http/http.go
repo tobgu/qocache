@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"regexp"
 	"strconv"
@@ -369,6 +370,13 @@ func (a *application) status(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func attachProfiler(router *mux.Router) {
+	router.HandleFunc("/debug/pprof/", pprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+}
+
 func Application(conf config.Config) *mux.Router {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
@@ -384,6 +392,10 @@ func Application(conf config.Config) *mux.Router {
 		r.HandleFunc(root+"/dataset/{key}", mw(app.queryDatasetGet)).Methods("GET")
 		r.HandleFunc(root+"/statistics", mw(app.statistics)).Methods("GET")
 		r.HandleFunc(root+"/status", mw(app.status)).Methods("GET")
+	}
+
+	if conf.HttpPprof {
+		attachProfiler(r)
 	}
 
 	return r
