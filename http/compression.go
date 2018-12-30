@@ -45,6 +45,17 @@ func (w *lz4BlockWriter) Close() error {
 			return errors.Propagate("LZ4 block compress", err)
 		}
 
+		if bufLen == 0 {
+			// Content uncompressible, return as is
+			w.ResponseWriter.Header().Del("Content-Encoding")
+			_, err := w.ResponseWriter.Write(w.buf)
+			if err != nil {
+				return errors.Propagate("LZ4 block compress", err)
+			}
+
+			return nil
+		}
+
 		// Store the len as a preamble to the data for now. This limits the uncompressed size to
 		// 4 Gb but is interoperable with the Python lib. Could be changed to some out of band
 		// transmission (an HTTP header?) to allow for bigger sizes and potentially interop with
@@ -146,8 +157,8 @@ func withLz4(app *application) middleware {
 				r.Body = lz4ReaderCloserWrapper{Reader: lz4.NewReader(r.Body), Closer: r.Body}
 			} else if r.Header.Get("Content-Encoding") == "lz4" {
 				cl, err := strconv.Atoi(r.Header.Get("Content-Length"))
-				if err != nil {
-					app.badRequest(w, "Invalid content length: %s", err)
+				if err != nil || cl < 0 {
+					app.badRequest(w, "Invalid content length: %s", r.Header.Get("Content-Length"))
 					return
 				}
 				r.Body = newLz4BlockReaderCloser(cl, r.Body)
@@ -175,8 +186,4 @@ func withLz4(app *application) middleware {
 	}
 }
 
-// TODO: Tests Go
 // TODO: Tests Python interop
-// TODO: General code cleanup
-// TODO: Profile and optimize read CSV + write JSON
-// TODO: Compare insert perf with qcache

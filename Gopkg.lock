@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/bkaradzic/go-lz4"
+  packages = ["."]
+  revision = "74ddf82598bc4745b965729e9c6a463bedd33049"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
   revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
@@ -172,6 +178,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b5b82caa350011814432603dbf2871d376d9297291a542988c3ac13d8cfda9d1"
+  inputs-digest = "5de28d620c67e0a519892cf1ad4e1505414e70b208be3721c9c38f5f493d0229"
   solver-name = "gps-cdcl"
   solver-version = 1

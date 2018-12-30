@@ -33,7 +33,7 @@ def post_data(data_type, headers, data, orig_size):
 
 def get_data(data_type, headers, orig_size):
     t0 = time.time()
-    resp = client.get("test-key", {"limit": 1}, query_headers=headers)
+    resp = client.get("test-key", {}, query_headers=headers)
     print("Get duration {} {}: {}".format(data_type, orig_size, time.time() - t0))
     return resp
 
@@ -49,8 +49,8 @@ def block_compressed_benchmark(data):
     resp = get_data("block-compressed", {"Accept-Encoding": "lz4"}, size)
 
     t0 = time.time()
-    lz4.block.decompress(resp.content)
-    print("Block decompress duration {}: {}".format(len(resp.content), time.time() - t0))
+    content = lz4.block.decompress(resp.content)
+    print("Block decompress duration {}: {}, {}".format(len(resp.content), time.time() - t0, content))
 
     t0 = time.time()
 
@@ -147,7 +147,10 @@ if False:
         uncompressed_benchmark(csv_data)
     #    compress_decompress_benchmark(csv_data)
 
-if True:
+csv_data = generate_csv(1000)
+block_compressed_benchmark(csv_data)
+
+if False:
     csv_data = generate_csv(10000)
     block_compressed_get_load(csv_data)
 

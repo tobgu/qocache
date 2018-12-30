@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	golz4 "github.com/bkaradzic/go-lz4"
 	"github.com/gocarina/gocsv"
 	"github.com/gorilla/mux"
 	"github.com/pierrec/lz4"
@@ -16,6 +17,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -63,11 +65,27 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 			defer pWriter.Close()
 			buf, err := ioutil.ReadAll(origBody)
 			if err != nil {
-				c.t.Fatalf("Error writing reading data for lz4 compression")
+				c.t.Fatalf("Error reading data for lz4 frame compression")
 			}
 			lz4Writer.Write(buf)
 			lz4Writer.Close()
 		}()
+	} else if headers["Content-Encoding"] == "lz4" {
+		srcBuf, err := ioutil.ReadAll(body)
+		if err != nil {
+			c.t.Fatalf("Error writing reading data for lz4 block compression")
+		}
+
+		// Use a different lz4 lib than the implementation to verify compatibility
+		dstBuf, err := golz4.Encode(nil, srcBuf)
+		if err != nil {
+			c.t.Fatalf("Error compressing data for lz4 block")
+		}
+		body = bytes.NewBuffer(dstBuf)
+
+		// Need to set this manually since it's not written until serializing the request which
+		// is not done when calling serveHTTP directly.
+		headers["Content-Length"] = strconv.Itoa(len(dstBuf))
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("/qocache/dataset/%s", key), body)
@@ -149,9 +167,13 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 	rr := httptest.NewRecorder()
 	c.app.ServeHTTP(rr, req)
 
-	if headers["Accept-Encoding"] == "lz4-frame" {
+	expectedEncoding, ok := headers["Expected-Encoding"]
+	if !ok {
+		expectedEncoding = headers["Accept-Encoding"]
+	}
+	if expectedEncoding == "lz4-frame" {
 		if rr.Header().Get("Content-Encoding") != "lz4-frame" {
-			c.t.Fatal("Expected content to be lz4 encoded, was not")
+			c.t.Fatal("Expected content to be lz4-frame encoded, was not")
 		}
 
 		lz4Reader := lz4.NewReader(rr.Body)
@@ -162,6 +184,24 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 		}
 
 		rr.Body = buf
+	} else if expectedEncoding == "lz4" {
+		if rr.Header().Get("Content-Encoding") != "lz4" {
+			c.t.Fatal("Expected content to be lz4 encoded, was not")
+		}
+
+		srcBuf, err := ioutil.ReadAll(rr.Body)
+		fmt.Println("Src buf len:", len(srcBuf), srcBuf)
+		if err != nil {
+			c.t.Fatal(err)
+		}
+
+		dstBuf, err := golz4.Decode(nil, srcBuf)
+		fmt.Println("Dst buf len:", len(dstBuf), "Content:", dstBuf, "end")
+		if err != nil {
+			c.t.Fatal(err)
+		}
+
+		rr.Body = bytes.NewBuffer(dstBuf)
 	}
 
 	return rr
@@ -283,22 +323,52 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 }
 
 func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
-	cache := newTestCache(t)
-	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
-	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4-frame"}, input)
-
-	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": "lz4-frame"}, "{}", "GET")
-	if rr.Code != http.StatusOK {
-		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
+	cases := []struct {
+		inputEncoding    string
+		acceptEncoding   string
+		expectedEncoding string
+		input            []TestData
+	}{
+		{
+			inputEncoding:    "lz4-frame",
+			acceptEncoding:   "lz4-frame",
+			expectedEncoding: "lz4-frame",
+			input:            []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+		},
+		{
+			// Uncompressible data
+			inputEncoding:    "lz4",
+			acceptEncoding:   "lz4",
+			expectedEncoding: "",
+			input:            []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+		},
+		{
+			inputEncoding:    "lz4",
+			acceptEncoding:   "lz4",
+			expectedEncoding: "lz4",
+			input:            []TestData{{S: "Foo", I: 123, F: 1.5, B: true}, {S: "Foo", I: 123, F: 1.5, B: true}},
+		},
 	}
 
-	var output []TestData
-	err := gocsv.Unmarshal(rr.Body, &output)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal CSV: %s", err.Error())
-	}
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("%s-%s-%s", c.inputEncoding, c.acceptEncoding, c.expectedEncoding), func(t *testing.T) {
+			cache := newTestCache(t)
+			cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": c.inputEncoding}, c.input)
 
-	compareTestData(t, output, input)
+			rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": c.acceptEncoding, "Expected-Encoding": c.expectedEncoding}, "{}", "GET")
+			if rr.Code != http.StatusOK {
+				t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
+			}
+
+			var output []TestData
+			err := gocsv.Unmarshal(rr.Body, &output)
+			if err != nil {
+				t.Fatalf("Failed to unmarshal CSV: %s", err.Error())
+			}
+
+			compareTestData(t, output, c.input)
+		})
+	}
 }
 
 func TestStatus(t *testing.T) {
