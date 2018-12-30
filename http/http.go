@@ -372,11 +372,11 @@ func (a *application) status(w http.ResponseWriter, r *http.Request) {
 func Application(conf config.Config) *mux.Router {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
-	app := application{cache: c, stats: s, logger: log.New(os.Stderr, "qocache", log.LstdFlags)}
+	app := &application{cache: c, stats: s, logger: log.New(os.Stderr, "qocache", log.LstdFlags)}
 	r := mux.NewRouter()
 
 	// Mount on both qcache and qocache for compatibility with qcache
-	mw := chainMiddleware(withLz4)
+	mw := chainMiddleware(withLz4(app))
 
 	for _, root := range []string{"/qcache", "/qocache"} {
 		r.HandleFunc(root+"/dataset/{key}", mw(app.newDataset)).Methods("POST")

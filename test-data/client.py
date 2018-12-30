@@ -122,9 +122,9 @@ for s in sizes:
     print(f"\n----- {s} -----")
     csv_data = generate_csv(s)
     block_compressed_benchmark(csv_data)
-    frame_compressed_benchmark(csv_data)
+#    frame_compressed_benchmark(csv_data)
     uncompressed_benchmark(csv_data)
-    compress_decompress_benchmark(csv_data)
+#    compress_decompress_benchmark(csv_data)
 
 # ----- 1000 -----
 # Block compress duration 1016: 3.4809112548828125e-05
@@ -191,3 +191,35 @@ for s in sizes:
 # Frame decompress duration 10000015: 0.01868605613708496
 # Frame compress no size duration: 0.05801844596862793
 # Frame decompress no size duration 10000015: 0.14292049407958984
+
+
+# QCache, for reference
+# ----- 1000 -----
+# Block compress duration 1000: 1.4066696166992188e-05
+# Post duration block-compressed 1000: 0.018204689025878906
+# Get duration block-compressed 1000: 0.024323463439941406
+# Block decompress duration 491: 2.002716064453125e-05
+# Python block compress duration 1000: 1.7881393432617188e-05
+# Python block decompress duration 417: 7.867813110351562e-06
+# Post duration uncompressed 1000: 0.01737213134765625
+# Get duration uncompressed 1000: 0.04035592079162598
+#
+# ----- 100000 -----
+# Block compress duration 100014: 0.0005407333374023438
+# Post duration block-compressed 100014: 0.03321433067321777
+# Get duration block-compressed 100014: 0.037641286849975586
+# Block decompress duration 33103: 0.0006084442138671875
+# Python block compress duration 100014: 0.0004901885986328125
+# Python block decompress duration 28478: 0.0002918243408203125
+# Post duration uncompressed 100014: 0.028759241104125977
+# Get duration uncompressed 100014: 0.049143314361572266
+#
+# ----- 10000000 -----
+# Block compress duration 10000018: 0.05651998519897461
+# Post duration block-compressed 10000018: 1.061251163482666
+# Get duration block-compressed 10000018: 2.4552574157714844
+# Block decompress duration 3273599: 0.05962109565734863
+# Python block compress duration 10000018: 0.05662846565246582
+# Python block decompress duration 2796747: 0.027180910110473633
+# Post duration uncompressed 10000018: 1.0426273345947266
+# Get duration uncompressed 10000018: 3.5250532627105713

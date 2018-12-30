@@ -11,6 +11,7 @@ import (
 	h "github.com/tobgu/qocache/http"
 	"github.com/tobgu/qocache/statistics"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -52,7 +53,7 @@ func newTestCache(t testing.TB) *testCache {
 }
 
 func (c *testCache) insertDataset(key string, headers map[string]string, body io.Reader) *httptest.ResponseRecorder {
-	if headers["Content-Encoding"] == "lz4" {
+	if headers["Content-Encoding"] == "lz4-frame" {
 		pReader, pWriter := io.Pipe()
 		lz4Writer := lz4.NewWriter(pWriter)
 		origBody := body
@@ -60,7 +61,12 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 
 		go func() {
 			defer pWriter.Close()
-			lz4Writer.ReadFrom(origBody)
+			buf, err := ioutil.ReadAll(origBody)
+			if err != nil {
+				c.t.Fatalf("Error writing reading data for lz4 compression")
+			}
+			lz4Writer.Write(buf)
+			lz4Writer.Close()
 		}()
 	}
 
@@ -143,8 +149,8 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 	rr := httptest.NewRecorder()
 	c.app.ServeHTTP(rr, req)
 
-	if headers["Accept-Encoding"] == "lz4" {
-		if rr.Header().Get("Content-Encoding") != "lz4" {
+	if headers["Accept-Encoding"] == "lz4-frame" {
+		if rr.Header().Get("Content-Encoding") != "lz4-frame" {
 			c.t.Fatal("Expected content to be lz4 encoded, was not")
 		}
 
@@ -279,9 +285,9 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
-	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4"}, input)
+	cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4-frame"}, input)
 
-	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": "lz4"}, "{}", "GET")
+	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv", "Accept-Encoding": "lz4-frame"}, "{}", "GET")
 	if rr.Code != http.StatusOK {
 		t.Errorf("Wrong status code: got %v want %v", rr.Code, http.StatusOK)
 	}

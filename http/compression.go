@@ -5,7 +5,6 @@ import (
 	"github.com/pierrec/lz4"
 	"github.com/tobgu/qframe/errors"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,7 +42,7 @@ func (w *lz4BlockWriter) Close() error {
 		dst := make([]byte, lz4.CompressBlockBound(len(w.buf))+lz4BlockHeaderLen)
 		bufLen, err := lz4.CompressBlock(w.buf, dst[lz4BlockHeaderLen:], ht[:])
 		if err != nil {
-			return err
+			return errors.Propagate("LZ4 block compress", err)
 		}
 
 		// Store the len as a preamble to the data for now. This limits the uncompressed size to
@@ -52,7 +51,11 @@ func (w *lz4BlockWriter) Close() error {
 		// other libraries.
 		storeLen(dst, uint32(len(w.buf)))
 		_, err = w.ResponseWriter.Write(dst[:bufLen+lz4BlockHeaderLen])
-		return err
+		if err != nil {
+			return errors.Propagate("LZ4 block write", err)
+		}
+
+		return nil
 	}
 
 	return nil
@@ -65,11 +68,11 @@ type lz4BlockReaderCloser struct {
 	bytesRead        int
 }
 
-func NewLz4BlockReaderCloser(contentLength int, rc io.ReadCloser) *lz4BlockReaderCloser {
+func newLz4BlockReaderCloser(contentLength int, rc io.ReadCloser) *lz4BlockReaderCloser {
 	return &lz4BlockReaderCloser{ReadCloser: rc, compressedBufLen: contentLength - lz4BlockHeaderLen}
 }
 
-func (r *lz4BlockReaderCloser) BufLen() (uint32, error) {
+func (r *lz4BlockReaderCloser) bufLen() (uint32, error) {
 	var header [lz4BlockHeaderLen]byte
 	bytesRead := 0
 	for bytesRead < lz4BlockHeaderLen {
@@ -86,9 +89,9 @@ func (r *lz4BlockReaderCloser) BufLen() (uint32, error) {
 
 func (r *lz4BlockReaderCloser) Read(b []byte) (int, error) {
 	if r.uncompressedBuf == nil {
-		l, err := r.BufLen()
+		l, err := r.bufLen()
 		if err != nil {
-			return 0, err
+			return 0, errors.Propagate("LZ4 block read buffer len", err)
 		}
 
 		r.uncompressedBuf = make([]byte, int(l))
@@ -98,17 +101,17 @@ func (r *lz4BlockReaderCloser) Read(b []byte) (int, error) {
 			n, err := r.ReadCloser.Read(compressedBuf[bytesRead:])
 			bytesRead += n
 			if err != nil && err != io.EOF {
-				return 0, err
+				return 0, errors.Propagate("LZ4 block read buffer", err)
 			}
 		}
 
 		size, err := lz4.UncompressBlock(compressedBuf, r.uncompressedBuf)
 		if err != nil {
-			return 0, err
+			return 0, errors.Propagate("LZ4 block uncompress", err)
 		}
 
 		if size != len(r.uncompressedBuf) {
-			return 0, errors.New("Uncompress lz4", "Unexpected uncompressed size, was: %d, expected: %d", size, len(r.uncompressedBuf))
+			return 0, errors.New("LZ4 block uncompress len", "Unexpected uncompressed size, was: %d, expected: %d", size, len(r.uncompressedBuf))
 		}
 	}
 
@@ -136,41 +139,42 @@ func storeLen(c []byte, l uint32) {
 	c[3] = byte((l >> 24) & 0xff)
 }
 
-func withLz4(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Content-Encoding") == "lz4-frame" {
-			r.Body = lz4ReaderCloserWrapper{Reader: lz4.NewReader(r.Body), Closer: r.Body}
-		} else if r.Header.Get("Content-Encoding") == "lz4" {
-			cl, err := strconv.Atoi(r.Header.Get("Content-Length"))
-			if err != nil {
-				// TODO: Don't panic here, return 400
-				log.Fatalf("Invalid content length: %s", err)
+func withLz4(app *application) middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Content-Encoding") == "lz4-frame" {
+				r.Body = lz4ReaderCloserWrapper{Reader: lz4.NewReader(r.Body), Closer: r.Body}
+			} else if r.Header.Get("Content-Encoding") == "lz4" {
+				cl, err := strconv.Atoi(r.Header.Get("Content-Length"))
+				if err != nil {
+					app.badRequest(w, "Invalid content length: %s", err)
+					return
+				}
+				r.Body = newLz4BlockReaderCloser(cl, r.Body)
 			}
-			r.Body = NewLz4BlockReaderCloser(cl, r.Body)
+
+			if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4-frame") {
+				w.Header().Set("Content-Encoding", "lz4-frame")
+
+				// Want to buffer this to avoid calling CompressBlock on every write
+				lz4Writer := lz4.NewWriter(w)
+				bufferedWriter := bufio.NewWriterSize(lz4Writer, lz4MaxBlockSize)
+				w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: bufferedWriter}
+
+				defer lz4Writer.Close()
+				defer bufferedWriter.Flush()
+			} else if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4") {
+				w.Header().Set("Content-Encoding", "lz4")
+				blockWriter := &lz4BlockWriter{ResponseWriter: w}
+				w = blockWriter
+				defer blockWriter.Close()
+			}
+
+			next.ServeHTTP(w, r)
 		}
-
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4-frame") {
-			w.Header().Set("Content-Encoding", "lz4-frame")
-
-			// Want to buffer this to avoid calling CompressBlock on every write
-			lz4Writer := lz4.NewWriter(w)
-			bufferedWriter := bufio.NewWriterSize(lz4Writer, lz4MaxBlockSize)
-			w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: bufferedWriter}
-
-			defer lz4Writer.Close()
-			defer bufferedWriter.Flush()
-		} else if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4") {
-			w.Header().Set("Content-Encoding", "lz4")
-			blockWriter := &lz4BlockWriter{ResponseWriter: w}
-			w = blockWriter
-			defer blockWriter.Close()
-		}
-
-		next.ServeHTTP(w, r)
 	}
 }
 
-// TODO: Better error handling
 // TODO: Tests Go
 // TODO: Tests Python interop
 // TODO: General code cleanup

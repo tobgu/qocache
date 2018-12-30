@@ -291,7 +291,8 @@ func BenchmarkLargeCsvInsert(b *testing.B) {
 	b.Run("LZ4 compression", func(b *testing.B) {
 		dstBuf := new(bytes.Buffer)
 		lz4W := lz4.NewWriter(dstBuf)
-		lz4W.ReadFrom(bytes.NewReader(buf))
+		lz4W.Write(buf)
+		lz4W.Close()
 		headers := map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4"}
 
 		b.ResetTimer()
