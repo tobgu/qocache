@@ -1,3 +1,5 @@
+import random
+
 from qclient import QClient
 import lz4.frame
 import lz4.block
@@ -10,9 +12,10 @@ def generate_csv(byte_size):
     header = b'abc,def,ghi,jkl,mno\r\n'
 
     body = []
-    line = "foobar,,,10.12345,10"
     l = len(header)
     while True:
+        number = round(random.uniform(-1000, 1000), 2)
+        line = f"foobar,,,{number},10"
         l += 2 + len(line)
         body.append(line)
         if l > byte_size:
@@ -35,41 +38,60 @@ def get_data(data_type, headers, orig_size):
     return resp
 
 
-def compressed_benchmark(size):
-    data = generate_csv(size)
+def block_compressed_benchmark(data):
     t0 = time.time()
     compressed_data = lz4.block.compress(data)
-    cd = compressed_data
-    print("Size: {}".format(cd[0] | (cd[1] << 8) | (cd[2] << 16) | (cd[3] << 24)))
-    print("Compress duration {}: {}".format(len(data), time.time() - t0))
+    size = len(data)
+    print("Block compress duration {}: {}".format(size, time.time() - t0))
 
     post_headers = {'Content-Encoding': 'lz4'}
-    post_data("compressed", post_headers, compressed_data, size)
-    resp = get_data("compressed", {"Accept-Encoding": "lz4"}, size)
+    post_data("block-compressed", post_headers, compressed_data, size)
+    resp = get_data("block-compressed", {"Accept-Encoding": "lz4"}, size)
 
     t0 = time.time()
-    data = lz4.block.decompress(resp.content)
-    print("Decompress duration {}: {}".format(len(resp.content), time.time() - t0))
+    lz4.block.decompress(resp.content)
+    print("Block decompress duration {}: {}".format(len(resp.content), time.time() - t0))
 
     t0 = time.time()
 
-    # store_size=True does a lot to speed up decompression, ~20x
     compressed_data = lz4.block.compress(data)
-    print("Python compress duration {}: {}".format(len(data), time.time() - t0))
+    print("Python block compress duration {}: {}".format(len(data), time.time() - t0))
 
     t0 = time.time()
     lz4.block.decompress(compressed_data)
-    print("Python decompress duration {}: {}".format(len(compressed_data), time.time() - t0))
+    print("Python block decompress duration {}: {}".format(len(compressed_data), time.time() - t0))
 
 
-def uncompressed_benchmark(size):
-    data = generate_csv(size)
-    post_data("uncompressed", {}, data, size)
-    get_data("uncompressed", {}, size)
+def frame_compressed_benchmark(data):
+    t0 = time.time()
+    compressed_data = lz4.frame.compress(data, block_linked=False)
+    size = len(data)
+    print("Frame compress duration {}: {}".format(size, time.time() - t0))
+
+    post_headers = {'Content-Encoding': 'lz4-frame'}
+    post_data("frame-compressed", post_headers, compressed_data, size)
+    resp = get_data("frame-compressed", {"Accept-Encoding": "lz4-frame"}, size)
+
+    t0 = time.time()
+    data = lz4.frame.decompress(resp.content)
+    print("Frame decompress duration {}: {}".format(len(resp.content), time.time() - t0))
+
+    t0 = time.time()
+
+    compressed_data = lz4.frame.compress(data)
+    print("Python frame compress duration {}: {}".format(size, time.time() - t0))
+
+    t0 = time.time()
+    lz4.frame.decompress(compressed_data)
+    print("Python frame decompress duration {}: {}".format(len(compressed_data), time.time() - t0))
 
 
-def compress_decompress_benchmark():
-    data = generate_csv(10000000)
+def uncompressed_benchmark(data):
+    post_data("uncompressed", {}, data, len(data))
+    get_data("uncompressed", {}, len(data))
+
+
+def compress_decompress_benchmark(data):
     t0 = time.time()
     compressed_data = lz4.block.compress(data)
     print("Block compress duration: {}".format(time.time() - t0))
@@ -83,81 +105,89 @@ def compress_decompress_benchmark():
     print("Frame compress duration: {}".format(time.time() - t0))
 
     t0 = time.time()
-    data = lz4.frame.decompress(compressed_data)
+    lz4.frame.decompress(compressed_data)
     print("Frame decompress duration {}: {}".format(len(data), time.time() - t0))
+
+    t0 = time.time()
+    compressed_data = lz4.frame.compress(data, block_linked=False, store_size=False)
+    print("Frame compress no size duration: {}".format(time.time() - t0))
+
+    t0 = time.time()
+    lz4.frame.decompress(compressed_data)
+    print("Frame decompress no size duration {}: {}".format(len(data), time.time() - t0))
 
 
 sizes = (1000, 100000, 10000000)
 for s in sizes:
-    compressed_benchmark(s)
-print("---------------------")
-for s in sizes:
-    uncompressed_benchmark(s)
-print("---------------------")
-compress_decompress_benchmark()
+    print(f"\n----- {s} -----")
+    csv_data = generate_csv(s)
+    block_compressed_benchmark(csv_data)
+    frame_compressed_benchmark(csv_data)
+    uncompressed_benchmark(csv_data)
+    compress_decompress_benchmark(csv_data)
 
-# Compress duration 1000: 1.5497207641601562e-05
-# Post duration compressed 1000: 0.009674787521362305
-# Get duration compressed 1000: 0.010808467864990234
-# Decompress duration 103: 0.0002238750457763672
-# Python compress duration 2836: 1.9073486328125e-05
-# Python decompress duration 96: 0.00016999244689941406
-# Compress duration 100000: 9.369850158691406e-05
-# Post duration compressed 100000: 0.012645959854125977
-# Get duration compressed 100000: 0.021214962005615234
-# Decompress duration 1218: 0.014893770217895508
-# Python compress duration 286336: 0.0002486705780029297
-# Python decompress duration 1498: 0.010906696319580078
-# Compress duration 10000000: 0.006943225860595703
-# Post duration compressed 10000000: 0.6397826671600342
-# Get duration compressed 10000000: 0.6576554775238037
-# Decompress duration 112845: 0.9228959083557129
-# Python compress duration 28636336: 0.0201413631439209
-# Python decompress duration 144891: 0.8815534114837646
-# ---------------------
-# Post duration uncompressed 1000: 0.005550384521484375
-# Get duration uncompressed 1000: 0.005549907684326172
-# Post duration uncompressed 100000: 0.012236356735229492
-# Get duration uncompressed 100000: 0.01726365089416504
-# Post duration uncompressed 10000000: 0.6105444431304932
-# Get duration uncompressed 10000000: 0.993727445602417
-# ---------------------
-# Block compress duration: 0.007385969161987305
-# Block decompress duration: 0.007120609283447266
-# Frame compress duration: 0.008198022842407227
-# Frame decompress duration 10000009: 0.006821632385253906
-
-# Block compression
-# Size: 1009
-# Compress duration 1009: 0.0001354217529296875
-# Post duration compressed 1000: 0.009932279586791992
-# Get duration compressed 1000: 0.006477832794189453
-# Decompress duration 87: 1.239776611328125e-05
-# Python compress duration 2836: 1.1920928955078125e-05
-# Python decompress duration 84: 6.198883056640625e-06
-# Size: 100009
-# Compress duration 100009: 0.00010752677917480469
-# Post duration compressed 100000: 0.013961076736450195
-# Get duration compressed 100000: 0.01851177215576172
-# Decompress duration 1202: 0.0006175041198730469
-# Python compress duration 286336: 0.00035881996154785156
-# Python decompress duration 1197: 0.00018405914306640625
-# Size: 10000009
-# Compress duration 10000009: 0.0072174072265625
-# Post duration compressed 10000000: 0.699796199798584
-# Get duration compressed 10000000: 0.6792848110198975
-# Decompress duration 112381: 0.06647062301635742
-# Python compress duration 28636336: 0.02183699607849121
-# Python decompress duration 112375: 0.05494260787963867
-# ---------------------
-# Post duration uncompressed 1000: 0.005845785140991211
-# Get duration uncompressed 1000: 0.005293846130371094
-# Post duration uncompressed 100000: 0.01471853256225586
-# Get duration uncompressed 100000: 0.01572728157043457
-# Post duration uncompressed 10000000: 0.6268734931945801
-# Get duration uncompressed 10000000: 0.9846124649047852
-# ---------------------
-# Block compress duration: 0.007230520248413086
-# Block decompress duration: 0.007122516632080078
-# Frame compress duration: 0.007024049758911133
-# Frame decompress duration 10000009: 0.00697016716003418
+# ----- 1000 -----
+# Block compress duration 1016: 3.4809112548828125e-05
+# Post duration block-compressed 1016: 0.010013580322265625
+# Get duration block-compressed 1016: 0.006348133087158203
+# Block decompress duration 502: 1.430511474609375e-05
+# Python block compress duration 1016: 1.7404556274414062e-05
+# Python block decompress duration 423: 6.4373016357421875e-06
+# Frame compress duration 1016: 2.574920654296875e-05
+# Post duration frame-compressed 1016: 0.005291938781738281
+# Get duration frame-compressed 1016: 0.00875997543334961
+# Frame decompress duration 515: 0.0002288818359375
+# Python frame compress duration 1016: 2.8371810913085938e-05
+# Python frame decompress duration 514: 3.647804260253906e-05
+# Post duration uncompressed 1016: 0.006818056106567383
+# Get duration uncompressed 1016: 0.00618290901184082
+# Block compress duration: 1.9550323486328125e-05
+# Block decompress duration: 6.4373016357421875e-06
+# Frame compress duration: 2.5033950805664062e-05
+# Frame decompress duration 1016: 2.3365020751953125e-05
+# Frame compress no size duration: 1.9788742065429688e-05
+# Frame decompress no size duration 1016: 1.5735626220703125e-05
+#
+# ----- 100000 -----
+# Block compress duration 99999: 0.0007016658782958984
+# Post duration block-compressed 99999: 0.013032197952270508
+# Get duration block-compressed 99999: 0.014141321182250977
+# Block decompress duration 35022: 0.0008203983306884766
+# Python block compress duration 99999: 0.0007052421569824219
+# Python block decompress duration 28511: 0.00023317337036132812
+# Frame compress duration 99999: 0.0005924701690673828
+# Post duration frame-compressed 99999: 0.019430875778198242
+# Get duration frame-compressed 99999: 0.024871110916137695
+# Frame decompress duration 35032: 0.00883936882019043
+# Python frame compress duration 99999: 0.0008690357208251953
+# Python frame decompress duration 33211: 0.0006248950958251953
+# Post duration uncompressed 99999: 0.01810288429260254
+# Get duration uncompressed 99999: 0.018460750579833984
+# Block compress duration: 0.0007646083831787109
+# Block decompress duration: 0.00015592575073242188
+# Frame compress duration: 0.0006260871887207031
+# Frame decompress duration 99999: 0.0001850128173828125
+# Frame compress no size duration: 0.00054931640625
+# Frame decompress no size duration 99999: 0.0014286041259765625
+#
+# ----- 10000000 -----
+# Block compress duration 10000015: 0.07544541358947754
+# Post duration block-compressed 10000015: 0.6772036552429199
+# Get duration block-compressed 10000015: 0.8411071300506592
+# Block decompress duration 3473944: 0.09713077545166016
+# Python block compress duration 10000015: 0.07901954650878906
+# Python block decompress duration 2797066: 0.02633380889892578
+# Frame compress duration 10000015: 0.06122398376464844
+# Post duration frame-compressed 10000015: 0.701441764831543
+# Get duration frame-compressed 10000015: 0.7850394248962402
+# Frame decompress duration 3475857: 0.7355217933654785
+# Python frame compress duration 10000015: 0.0748136043548584
+# Python frame decompress duration 3275922: 0.06526613235473633
+# Post duration uncompressed 10000015: 0.647383451461792
+# Get duration uncompressed 10000015: 1.1222872734069824
+# Block compress duration: 0.07514023780822754
+# Block decompress duration: 0.016193151473999023
+# Frame compress duration: 0.05902743339538574
+# Frame decompress duration 10000015: 0.01868605613708496
+# Frame compress no size duration: 0.05801844596862793
+# Frame decompress no size duration 10000015: 0.14292049407958984
