@@ -618,9 +618,9 @@ func TestQueryWithSlice(t *testing.T) {
 	input := []TestData{{S: "A"}, {S: "B"}, {S: "C"}}
 
 	cases := []struct {
-		offset   int
-		limit    int
-		expected []TestData
+		offset             int
+		limit              int
+		expected           []TestData
 		expectedStatusCode int
 	}{
 		{offset: 0, limit: 0, expected: []TestData{{S: "A"}, {S: "B"}, {S: "C"}}},
@@ -644,13 +644,12 @@ func TestQueryWithSlice(t *testing.T) {
 				tc.expectedStatusCode = http.StatusOK
 			}
 
-			if rr.Code != tc.expectedStatusCode{
+			if rr.Code != tc.expectedStatusCode {
 				t.Errorf("Unexpected status code, actual: %d, expected: %d", rr.Code, tc.expectedStatusCode)
 			}
 		})
 	}
 }
-
 
 func TestQuery(t *testing.T) {
 	// Various basic query test cases following the same pattern

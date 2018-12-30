@@ -323,7 +323,7 @@ func (q query) slice(f qf.QFrame) qf.QFrame {
 
 	stop := f.Len()
 	if q.Limit > 0 {
-		stop = intMin(offset + q.Limit, f.Len())
+		stop = intMin(offset+q.Limit, f.Len())
 	}
 
 	return f.Slice(offset, stop)
