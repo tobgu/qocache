@@ -13,7 +13,9 @@ def generate_csv(byte_size):
 
     body = []
     l = len(header)
+    row_count = 0
     while True:
+        row_count += 1
         number = round(random.uniform(-1000, 1000), 2)
         line = f"foobar,,,{number},10"
         l += 2 + len(line)
@@ -22,7 +24,7 @@ def generate_csv(byte_size):
             break
 
     data = "\r\n".join(body).encode("utf-8")
-    return header + data
+    return header + data, row_count
 
 
 def post_data(data_type, headers, data, orig_size):
@@ -38,22 +40,20 @@ def get_data(data_type, headers, orig_size):
     return resp
 
 
-def block_compressed_benchmark(data):
+def block_compressed_benchmark(data, row_count):
     t0 = time.time()
     compressed_data = lz4.block.compress(data)
     size = len(data)
     print("Block compress duration {}: {}".format(size, time.time() - t0))
 
-    post_headers = {'Content-Encoding': 'lz4'}
+    post_headers = {'Content-Encoding': 'lz4', 'X-QCache-row-count-hint': str(row_count)}
     post_data("block-compressed", post_headers, compressed_data, size)
     resp = get_data("block-compressed", {"Accept-Encoding": "lz4"}, size)
 
     t0 = time.time()
-    content = lz4.block.decompress(resp.content)
-    print("Block decompress duration {}: {}, {}".format(len(resp.content), time.time() - t0, content))
+    print("Block decompress duration {}: {}".format(len(resp.content), time.time() - t0))
 
     t0 = time.time()
-
     compressed_data = lz4.block.compress(data)
     print("Python block compress duration {}: {}".format(len(data), time.time() - t0))
 
@@ -106,8 +106,8 @@ def frame_compressed_benchmark(data):
     print("Python frame decompress duration {}: {}".format(len(compressed_data), time.time() - t0))
 
 
-def uncompressed_benchmark(data):
-    post_data("uncompressed", {}, data, len(data))
+def uncompressed_benchmark(data, row_count):
+    post_data("uncompressed", {"X-QCache-row-count-hint": str(row_count)}, data, len(data))
     get_data("uncompressed", {}, len(data))
 
 
@@ -137,18 +137,19 @@ def compress_decompress_benchmark(data):
     print("Frame decompress no size duration {}: {}".format(len(data), time.time() - t0))
 
 
-if False:
+if True:
     sizes = (1000, 100000, 10000000)
     for s in sizes:
         print(f"\n----- {s} -----")
-        csv_data = generate_csv(s)
-        block_compressed_benchmark(csv_data)
+        csv_data, row_count = generate_csv(s)
+        block_compressed_benchmark(csv_data, row_count)
     #    frame_compressed_benchmark(csv_data)
-        uncompressed_benchmark(csv_data)
+        uncompressed_benchmark(csv_data, row_count)
     #    compress_decompress_benchmark(csv_data)
 
-csv_data = generate_csv(1000)
-block_compressed_benchmark(csv_data)
+if False:
+    csv_data = generate_csv(1000)
+    block_compressed_benchmark(csv_data)
 
 if False:
     csv_data = generate_csv(10000)

@@ -135,7 +135,15 @@ func headersToCsvConfig(headers http.Header) ([]csv.ConfigFunc, error) {
 		return nil, err
 	}
 
-	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals), csv.EmptyNull(true)}, nil
+	rowCountHint := 0
+	if rowCountHintStr := headers.Get("X-QCache-row-count-hint"); rowCountHintStr != "" {
+		rowCountHint, err = strconv.Atoi(rowCountHintStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals), csv.EmptyNull(true), csv.RowCountHint(rowCountHint)}, nil
 }
 
 func headersToJsonConfig(headers http.Header) ([]newqf.ConfigFunc, error) {
