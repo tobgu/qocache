@@ -6,6 +6,10 @@ import (
 	qhttp "github.com/tobgu/qocache/http"
 	"log"
 	"net/http"
+	"os/signal"
+	"os"
+	"syscall"
+	"context"
 )
 
 type Config struct {
@@ -19,5 +23,31 @@ func main() {
 	}
 
 	log.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", c.Port), qhttp.Application(c)))
+
+	app := qhttp.Application(c)
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", c.Port), Handler: app}
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt)
+		signal.Notify(sigint, syscall.SIGTERM)
+		<-sigint
+
+		// We received an interrupt signal, shut down.
+		if err := srv.Shutdown(context.Background()); err != nil {
+			log.Printf("HTTP server Shutdown: %v", err)
+		}
+		close(idleConnsClosed)
+	}()
+
+	err = srv.ListenAndServe()
+	if err == http.ErrServerClosed {
+		log.Printf("Starting server shutdown...")
+	} else if err != nil {
+		log.Printf("HTTP server ListenAndServe: %v", err)
+		return
+	}
+
+	<-idleConnsClosed
+	log.Printf("Shutdown complete")
 }
