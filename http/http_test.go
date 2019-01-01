@@ -190,13 +190,11 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 		}
 
 		srcBuf, err := ioutil.ReadAll(rr.Body)
-		fmt.Println("Src buf len:", len(srcBuf), srcBuf)
 		if err != nil {
 			c.t.Fatal(err)
 		}
 
 		dstBuf, err := golz4.Decode(nil, srcBuf)
-		fmt.Println("Dst buf len:", len(dstBuf), "Content:", dstBuf, "end")
 		if err != nil {
 			c.t.Fatal(err)
 		}
@@ -336,11 +334,18 @@ func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 			input:            []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
 		},
 		{
-			// Uncompressible data
+			// Uncompressible data, only one row
 			inputEncoding:    "lz4",
 			acceptEncoding:   "lz4",
 			expectedEncoding: "",
 			input:            []TestData{{S: "Foo", I: 123, F: 1.5, B: true}},
+		},
+		{
+			// Uncompressible data, empty
+			inputEncoding:    "lz4",
+			acceptEncoding:   "lz4",
+			expectedEncoding: "",
+			input:            []TestData{},
 		},
 		{
 			inputEncoding:    "lz4",
@@ -351,7 +356,7 @@ func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		t.Run(fmt.Sprintf("%s-%s-%s", c.inputEncoding, c.acceptEncoding, c.expectedEncoding), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-%s-%s-%d", c.inputEncoding, c.acceptEncoding, c.expectedEncoding, len(c.input)), func(t *testing.T) {
 			cache := newTestCache(t)
 			cache.insertCsv("FOO", map[string]string{"Content-Type": "text/csv", "Content-Encoding": c.inputEncoding}, c.input)
 
@@ -369,6 +374,13 @@ func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 			compareTestData(t, output, c.input)
 		})
 	}
+}
+
+func TestQueryNonExistingKeyLz4(t *testing.T) {
+	cache := newTestCache(t)
+	rr := cache.queryJson("FOO", map[string]string{"Accept-Encoding": "lz4", "Expected-Encoding": ""}, "{}", "GET", nil)
+	assertEqual(t, rr.Code, http.StatusNotFound)
+	assertEqual(t, string(rr.Body.Bytes()), "Dataset 'FOO' not found")
 }
 
 func TestStatus(t *testing.T) {

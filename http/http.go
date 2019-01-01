@@ -302,6 +302,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	item, ok := a.cache.Get(key)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(fmt.Sprintf("Dataset '%s' not found", key)))
 		statsProbe.Missing()
 		return
 	}
