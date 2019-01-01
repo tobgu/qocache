@@ -17,7 +17,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/pprof"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -352,7 +351,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 
 	if err != nil {
 		// TODO: Investigate which errors that should panic
-		log.Fatalf("Failed writing JSON: %v", err)
+		a.logger.Fatalf("Failed writing response: %v", err)
 	}
 
 	statsProbe.Success()
@@ -386,10 +385,10 @@ func attachProfiler(router *mux.Router) {
 	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 }
 
-func Application(conf config.Config) *mux.Router {
+func Application(conf config.Config, logger *log.Logger) *mux.Router {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
-	app := &application{cache: c, stats: s, logger: log.New(os.Stderr, "qocache", log.LstdFlags)}
+	app := &application{cache: c, stats: s, logger: logger}
 	r := mux.NewRouter()
 
 	middleWares := make([]middleware, 0)

@@ -1,7 +1,6 @@
 package http
 
 import (
-	"log"
 	"net/http"
 	"time"
 )
@@ -22,7 +21,7 @@ func withRequestLog(app *application) middleware {
 			start := time.Now()
 			recorder := &statusRecorder{ResponseWriter: w, code: http.StatusOK}
 			next.ServeHTTP(recorder, r)
-			log.Printf("%s %s %d %d ms %s %s", r.Method, r.URL.Path, recorder.code, time.Since(start)/time.Millisecond, r.Host, r.RemoteAddr)
+			app.logger.Printf("%s %s %d %d ms %s %s", r.Method, r.URL.Path, recorder.code, time.Since(start)/time.Millisecond, r.Host, r.RemoteAddr)
 		}
 	}
 }

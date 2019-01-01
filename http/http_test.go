@@ -13,9 +13,11 @@ import (
 	"github.com/tobgu/qocache/statistics"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -51,7 +53,7 @@ type testCache struct {
 }
 
 func newTestCache(t testing.TB) *testCache {
-	return &testCache{t: t, app: h.Application(config.Config{Size: 1000000000, StatisticsBufferSize: 1000})}
+	return &testCache{t: t, app: h.Application(config.Config{Size: 1000000000, StatisticsBufferSize: 1000}, log.New(os.Stderr, "qocache-test", log.LstdFlags))}
 }
 
 func (c *testCache) insertDataset(key string, headers map[string]string, body io.Reader) *httptest.ResponseRecorder {

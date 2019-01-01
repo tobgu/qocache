@@ -18,13 +18,14 @@ type Config struct {
 
 func main() {
 	c, err := config.GetConfig()
+	logger := log.New(os.Stderr, "qocache", log.LstdFlags)
 	if err != nil {
-		log.Fatalf("Configuration error: %s", err.Error())
+		logger.Fatalf("Configuration error: %s", err.Error())
 	}
 
-	log.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
+	logger.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
 
-	app := qhttp.Application(c)
+	app := qhttp.Application(c, logger)
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", c.Port), Handler: app}
 	idleConnsClosed := make(chan struct{})
 	go func() {
@@ -35,19 +36,19 @@ func main() {
 
 		// We received an interrupt signal, shut down.
 		if err := srv.Shutdown(context.Background()); err != nil {
-			log.Printf("HTTP server Shutdown: %v", err)
+			logger.Printf("HTTP server Shutdown: %v", err)
 		}
 		close(idleConnsClosed)
 	}()
 
 	err = srv.ListenAndServe()
 	if err == http.ErrServerClosed {
-		log.Printf("Starting server shutdown...")
+		logger.Printf("Starting server shutdown...")
 	} else if err != nil {
-		log.Printf("HTTP server ListenAndServe: %v", err)
+		logger.Printf("HTTP server ListenAndServe: %v", err)
 		return
 	}
 
 	<-idleConnsClosed
-	log.Printf("Shutdown complete")
+	logger.Printf("Shutdown complete")
 }
