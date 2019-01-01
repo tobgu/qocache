@@ -860,7 +860,9 @@ func TestQuery(t *testing.T) {
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Null stand ins?
 - In filter with sub query
-- Logging?
-- Dependencies
+- Logging, should be pluggable, add request logging
+- Dependencies, go modules
 - README
+- Python integration tests
+- Response codes != 200 should not be compressed
 */
