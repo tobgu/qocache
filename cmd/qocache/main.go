@@ -1,15 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/tobgu/qocache/config"
 	qhttp "github.com/tobgu/qocache/http"
 	"log"
 	"net/http"
-	"os/signal"
 	"os"
+	"os/signal"
 	"syscall"
-	"context"
 )
 
 type Config struct {

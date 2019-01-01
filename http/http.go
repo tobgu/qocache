@@ -392,9 +392,15 @@ func Application(conf config.Config) *mux.Router {
 	app := &application{cache: c, stats: s, logger: log.New(os.Stderr, "qocache", log.LstdFlags)}
 	r := mux.NewRouter()
 
-	// Mount on both qcache and qocache for compatibility with qcache
-	mw := chainMiddleware(withLz4(app))
+	middleWares := make([]middleware, 0)
+	if conf.RequestLog {
+		middleWares = append(middleWares, withRequestLog(app))
+	}
+	middleWares = append(middleWares, withLz4(app))
 
+	mw := chainMiddleware(middleWares...)
+
+	// Mount on both qcache and qocache for compatibility with qcache
 	for _, root := range []string{"/qcache", "/qocache"} {
 		r.HandleFunc(root+"/dataset/{key}", mw(app.newDataset)).Methods("POST")
 		r.HandleFunc(root+"/dataset/{key}/q", mw(app.queryDatasetPost)).Methods("POST")

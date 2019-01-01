@@ -51,6 +51,7 @@ def block_compressed_benchmark(data, row_count):
     resp = get_data("block-compressed", {"Accept-Encoding": "lz4"}, size)
 
     t0 = time.time()
+    lz4.block.compress(resp.content)
     print("Block decompress duration {}: {}".format(len(resp.content), time.time() - t0))
 
     t0 = time.time()

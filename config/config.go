@@ -24,6 +24,7 @@ type Config struct {
 	Age                  int  `mapstructure:"age"`
 	StatisticsBufferSize int  `mapstructure:"statistics-buffer-size"`
 	HttpPprof            bool `mapstructure:"http-pprof"`
+	RequestLog           bool `mapstructure:"request-log"`
 
 	/*
 		CertFile string
@@ -42,6 +43,7 @@ func init() {
 	addIntParameter("age", "a", "Max age of cached item in seconds, 0 = never expire", 0)
 	addIntParameter("statistics-buffer-size", "b", "Number of items to store in statistics ring buffer", 1000)
 	addBoolParameter("http-pprof", "If HTTP pprof endpoint should be enabled or not", false)
+	addBoolParameter("request-log", "If HTTP request logging should be enabled or not", false)
 }
 
 func addStringParameter(longName, shortName, usage, value string) {

@@ -865,4 +865,5 @@ func TestQuery(t *testing.T) {
 - README
 - Python integration tests
 - Response codes != 200 should not be compressed
+- Error responses, should they all be in JSON? Should we avoid compressing them?
 */

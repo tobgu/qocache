@@ -40,7 +40,6 @@ class TestStringMethods(unittest.TestCase):
         resp_data = lz4.block.decompress(resp.content)
         self.assertEqual(row_count, len(json.loads(resp_data.decode("utf-8"))))
 
-
     def test_post_receive_lz4_frame(self):
         data, row_count = generate_csv(10000)
         compressed_data = lz4.frame.compress(data)

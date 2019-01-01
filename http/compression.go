@@ -185,5 +185,3 @@ func withLz4(app *application) middleware {
 		}
 	}
 }
-
-// TODO: Tests Python interop
