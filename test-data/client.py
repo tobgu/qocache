@@ -1,5 +1,6 @@
 import random
 
+import requests
 from qclient import QClient
 import lz4.frame
 import lz4.block
@@ -138,7 +139,22 @@ def compress_decompress_benchmark(data):
     print("Frame decompress no size duration {}: {}".format(len(data), time.time() - t0))
 
 
+def requests_performance():
+    s = requests.Session()
+
+    # Setting this to false cuts requests overhead from 9-10 ms to 2 - 4 ms.
+    s.trust_env = False
+    for _ in range(100):
+        t0 = time.time()
+        resp = s.get("http://localhost:8888/qcache/status")
+        print("Duration: {}".format(time.time() - t0))
+        assert resp.status_code == 200
+
+
 if True:
+    requests_performance()
+
+if False:
     sizes = (1000, 100000, 10000000)
     for s in sizes:
         print(f"\n----- {s} -----")
