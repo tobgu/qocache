@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/tobgu/qocache.png)](https://travis-ci.org/tobgu/qocache)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tobgu/qocache)](https://goreportcard.com/report/github.com/tobgu/qocache)
+
 Qocache is a Go port of [Qcache](https://github.com/tobgu/qcache).
 
 ## Functionality in Qocache that does not exist in Qcache
