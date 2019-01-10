@@ -1,12 +1,16 @@
+GO=go
 
 test:
-	go test github.com/tobgu/qocache/...
+	$(GO) test github.com/tobgu/qocache/...
+
+bench:
+	$(GO) test -bench=.
 
 fmt:
-	go fmt ./...
+	$(GO) fmt ./...
 
 vet:
-	go vet ./...
+	$(GO) vet ./...
 
 build:
-	go build github.com/tobgu/qocache/cmd/qocache
+	$(GO) build github.com/tobgu/qocache/cmd/qocache
