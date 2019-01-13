@@ -6,6 +6,7 @@ import lz4.frame
 import lz4.block
 import time
 
+# client = QClient(node_list=('https://localhost:8888',), verify='../tls/ca.pem', cert='../tls/host.pem')
 client = QClient(node_list=('http://localhost:8888',))
 
 
@@ -140,21 +141,24 @@ def compress_decompress_benchmark(data):
 
 
 def requests_performance():
+    # s = requests.Session()
     s = requests.Session()
+    s.verify = '../tls/ca.pem'
+    s.cert = '../tls/host.pem'
 
     # Setting this to false cuts requests overhead from 9-10 ms to 2 - 4 ms.
     s.trust_env = False
     for _ in range(100):
         t0 = time.time()
-        resp = s.get("http://localhost:8888/qcache/status")
+        resp = s.get("https://localhost:8888/qcache/status")
         print("Duration: {}".format(time.time() - t0))
         assert resp.status_code == 200
 
 
-if True:
+if False:
     requests_performance()
 
-if False:
+if True:
     sizes = (1000, 100000, 10000000)
     for s in sizes:
         print(f"\n----- {s} -----")
