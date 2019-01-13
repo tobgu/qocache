@@ -19,16 +19,17 @@ import (
 */
 
 type Config struct {
-	Size                 int  `mapstructure:"size"`
-	Port                 int  `mapstructure:"port"`
-	Age                  int  `mapstructure:"age"`
-	StatisticsBufferSize int  `mapstructure:"statistics-buffer-size"`
-	HttpPprof            bool `mapstructure:"http-pprof"`
-	RequestLog           bool `mapstructure:"request-log"`
+	Size                 int    `mapstructure:"size"`
+	Port                 int    `mapstructure:"port"`
+	Age                  int    `mapstructure:"age"`
+	StatisticsBufferSize int    `mapstructure:"statistics-buffer-size"`
+	HttpPprof            bool   `mapstructure:"http-pprof"`
+	RequestLog           bool   `mapstructure:"request-log"`
+	CAFile               string `mapstructure:"ca-file"`
+	CertFile             string `mapstructure:"cert-file"`
+	// TODO: Do we need to add an optional parameter to specify server private key for cases when not colocated with cert?
 
 	/*
-		CertFile string
-		CaFile string
 		BasicAuth string
 	*/
 }
@@ -44,20 +45,29 @@ func init() {
 	addIntParameter("statistics-buffer-size", "b", "Number of items to store in statistics ring buffer", 1000)
 	addBoolParameter("http-pprof", "If HTTP pprof endpoint should be enabled or not", false)
 	addBoolParameter("request-log", "If HTTP request logging should be enabled or not", false)
+	addStringParameter("ca-file", "Path to CA certificate authority file, if passed in it will be used to verify client certificates", "")
+	addStringParameter("cert-file", "Path to file containing certificate and private key for server side TLS", "")
 }
 
-func addStringParameter(longName, shortName, usage, value string) {
-	viper.BindEnv(longName)
-	pflag.StringP(longName, shortName, value, usage)
+func bindEnv(name string) {
+	err := viper.BindEnv(name)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func addStringParameter(longName, usage, value string) {
+	bindEnv(longName)
+	pflag.String(longName, value, usage)
 }
 
 func addBoolParameter(longName, usage string, value bool) {
-	viper.BindEnv(longName)
+	bindEnv(longName)
 	pflag.Bool(longName, value, usage)
 }
 
 func addIntParameter(longName, shortName, usage string, value int) {
-	viper.BindEnv(longName)
+	bindEnv(longName)
 	pflag.IntP(longName, shortName, value, usage)
 }
 
@@ -70,9 +80,12 @@ func GetConfig() (Config, error) {
 	}
 
 	pflag.Parse()
-	viper.BindPFlags(pflag.CommandLine)
-
+	err := viper.BindPFlags(pflag.CommandLine)
 	c := Config{}
-	err := viper.Unmarshal(&c)
+	if err != nil {
+		return c, err
+	}
+
+	err = viper.Unmarshal(&c)
 	return c, err
 }

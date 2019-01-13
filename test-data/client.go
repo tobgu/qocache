@@ -1,8 +1,8 @@
 package main
 
 import (
-	"net/http"
 	"io/ioutil"
+	"net/http"
 	"time"
 )
 
@@ -24,6 +24,6 @@ func main() {
 		}
 		resp.Body.Close()
 
-		println("Duration: ", time.Now().Sub(t0) / time.Microsecond, " mus, Len: ", len(b), " bytes")
+		println("Duration: ", time.Now().Sub(t0)/time.Microsecond, " mus, Len: ", len(b), " bytes")
 	}
 }

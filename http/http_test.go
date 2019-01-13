@@ -868,4 +868,5 @@ func TestQuery(t *testing.T) {
 - Python integration tests
 - Response codes != 200 should not be compressed
 - Error responses, should they all be in JSON? Should we avoid compressing them?
+- Test what the actual memory consumption is compared to the configured.
 */
