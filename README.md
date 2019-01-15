@@ -10,7 +10,8 @@ Qocache is a Go port of [Qcache](https://github.com/tobgu/qcache).
   file in addition to command line arguments.
 * LZ4 frame based compression
 
-## Functionality in Qcache still missing in Qocache
+## Functionality in Qcache planned but still missing in Qocache
 * Subqueries in `in` clause
-* TLS support, server and client certificates
-* Basic auth support
+
+## Functionality in Qcache not planned in Qocache
+* GZIP compression support in HTTP request/response
