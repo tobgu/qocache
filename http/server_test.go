@@ -31,25 +31,37 @@ func TestTLSServer(t *testing.T) {
 	defer srv.Close()
 	time.Sleep(100 * time.Millisecond)
 
-	client := newClient(t)
-	res, err := client.Get("https://localhost:8888/qcache/foo")
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("Successful mutual TLS", func(t *testing.T) {
+		client := newClient(t, true)
+		res, err := client.Get("https://localhost:8888/qcache/status")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	defer res.Body.Close()
+		defer res.Body.Close()
 
-	if res.StatusCode != http.StatusNotFound {
-		t.Errorf("Response code was %v; want 404", res.StatusCode)
-	}
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("Response code was %v; want 200", res.StatusCode)
+		}
+	})
+
+	t.Run("Unsuccessful mutual TLS, no client cert", func(t *testing.T) {
+		client := newClient(t, false)
+		_, err := client.Get("https://localhost:8888/qcache/status")
+		assert.Error(t, err)
+	})
 }
 
-func newClient(t *testing.T) *http.Client {
+func newClient(t *testing.T, withClientCert bool) *http.Client {
 	t.Helper()
 
-	cert, err := tls.LoadX509KeyPair("../tls/host.pem", "../tls/host.pem")
-	if err != nil {
-		t.Fatalf("Unable to load cert: %v", err)
+	var clientCerts []tls.Certificate
+	if withClientCert {
+		cert, err := tls.LoadX509KeyPair("../tls/host.pem", "../tls/host.pem")
+		if err != nil {
+			t.Fatalf("Unable to load cert: %v", err)
+		}
+		clientCerts = append(clientCerts, cert)
 	}
 
 	// Load our CA certificate
@@ -62,12 +74,10 @@ func newClient(t *testing.T) *http.Client {
 	clientCertPool.AppendCertsFromPEM(clientCACert)
 
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
+		Certificates: clientCerts,
 		RootCAs:      clientCertPool,
 	}
 	tlsConfig.BuildNameToCertificate()
 
 	return &http.Client{Transport: &http.Transport{TLSClientConfig: tlsConfig}}
 }
-
-// TODO: Negative tests
