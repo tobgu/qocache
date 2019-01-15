@@ -385,7 +385,7 @@ func attachProfiler(router *mux.Router) {
 	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 }
 
-func Application(conf config.Config, logger *log.Logger) *mux.Router {
+func Application(conf config.Config, logger *log.Logger) (*mux.Router, error) {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
 	app := &application{cache: c, stats: s, logger: logger}
@@ -395,6 +395,15 @@ func Application(conf config.Config, logger *log.Logger) *mux.Router {
 	if conf.RequestLog {
 		middleWares = append(middleWares, withRequestLog(app))
 	}
+
+	if conf.BasicAuth != "" {
+		user, password, err := parseBasicAuth(conf.BasicAuth)
+		if err != nil {
+			return nil, err
+		}
+		middleWares = append(middleWares, withBasicAuth(app.logger, user, password))
+	}
+
 	middleWares = append(middleWares, withLz4(app))
 
 	mw := chainMiddleware(middleWares...)
@@ -412,5 +421,24 @@ func Application(conf config.Config, logger *log.Logger) *mux.Router {
 		attachProfiler(r)
 	}
 
-	return r
+	return r, nil
+}
+
+func parseBasicAuth(auth string) (string, string, error) {
+	parts := strings.Split(auth, ":")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid basic auth string, expected <username>:<password>, was: %s", auth)
+	}
+
+	username := parts[0]
+	password := parts[1]
+	if len(username) < 1 {
+		return "", "", fmt.Errorf("invalid basic auth string, username must not be empty")
+	}
+
+	if len(password) < 1 {
+		return "", "", fmt.Errorf("invalid basic auth string, password must not be empty")
+	}
+
+	return username, password, nil
 }

@@ -22,8 +22,11 @@ func (s *Server) ListAndServeAsConfigured() error {
 	return s.ListenAndServe()
 }
 
-func NewServer(c config.Config, logger *log.Logger) *Server {
-	app := Application(c, logger)
+func NewServer(c config.Config, logger *log.Logger) (*Server, error) {
+	app, err := Application(c, logger)
+	if err != nil {
+		return nil, err
+	}
 	srv := &Server{
 		Server: http.Server{Addr: fmt.Sprintf(":%d", c.Port), Handler: app},
 		c:      c,
@@ -34,7 +37,7 @@ func NewServer(c config.Config, logger *log.Logger) *Server {
 		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0)
 	}
 
-	return srv
+	return srv, nil
 }
 
 func newTLSConfig(c config.Config, logger *log.Logger) *tls.Config {

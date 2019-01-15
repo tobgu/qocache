@@ -3,6 +3,7 @@ package http_test
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/stretchr/testify/assert"
 	"github.com/tobgu/qocache/config"
 	qhttp "github.com/tobgu/qocache/http"
 	"io/ioutil"
@@ -17,7 +18,8 @@ func TestTLSServer(t *testing.T) {
 	// Test connecting to TLS server with valid client side cert.
 	c := config.Config{CAFile: "../tls/ca.pem", CertFile: "../tls/host.pem", Port: 8888}
 	logger := log.New(os.Stderr, "qocache-test", log.LstdFlags)
-	srv := qhttp.NewServer(c, logger)
+	srv, err := qhttp.NewServer(c, logger)
+	assert.Nil(t, err)
 
 	go func() {
 		err := srv.ListAndServeAsConfigured()

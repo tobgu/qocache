@@ -29,9 +29,7 @@ type Config struct {
 	CertFile             string `mapstructure:"cert-file"`
 	// TODO: Do we need to add an optional parameter to specify server private key for cases when not colocated with cert?
 
-	/*
-		BasicAuth string
-	*/
+	BasicAuth string `mapstructure:"basic-auth"`
 }
 
 func init() {

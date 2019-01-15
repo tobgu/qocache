@@ -18,9 +18,12 @@ func main() {
 		logger.Fatalf("Configuration error: %s", err.Error())
 	}
 
-	logger.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
-	srv := qhttp.NewServer(c, logger)
+	srv, err := qhttp.NewServer(c, logger)
+	if err != nil {
+		logger.Fatalf("Configuration error: %s", err.Error())
+	}
 
+	logger.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
 	idleConnsClosed := make(chan struct{})
 	go func() {
 		sigint := make(chan os.Signal, 1)

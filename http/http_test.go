@@ -8,6 +8,7 @@ import (
 	"github.com/gocarina/gocsv"
 	"github.com/gorilla/mux"
 	"github.com/pierrec/lz4"
+	"github.com/stretchr/testify/assert"
 	"github.com/tobgu/qocache/config"
 	h "github.com/tobgu/qocache/http"
 	"github.com/tobgu/qocache/statistics"
@@ -53,7 +54,18 @@ type testCache struct {
 }
 
 func newTestCache(t testing.TB) *testCache {
-	return &testCache{t: t, app: h.Application(config.Config{Size: 1000000000, StatisticsBufferSize: 1000}, log.New(os.Stderr, "qocache-test", log.LstdFlags))}
+	t.Helper()
+	c, err := newTestCacheWithConfig(t, config.Config{Size: 1000000000, StatisticsBufferSize: 1000})
+	if err != nil {
+		t.Fatalf("Error creating application: %v", err)
+	}
+	return c
+}
+
+func newTestCacheWithConfig(t testing.TB, c config.Config) (*testCache, error) {
+	t.Helper()
+	app, err := h.Application(c, log.New(os.Stderr, "qocache-test", log.LstdFlags))
+	return &testCache{t: t, app: app}, err
 }
 
 func (c *testCache) insertDataset(key string, headers map[string]string, body io.Reader) *httptest.ResponseRecorder {
@@ -853,6 +865,50 @@ func TestQuery(t *testing.T) {
 
 			if tc.expectedCode == http.StatusOK {
 				compareTestData(t, output, tc.expected)
+			}
+		})
+	}
+}
+
+func TestBasicAuth(t *testing.T) {
+	c, err := newTestCacheWithConfig(t, config.Config{Size: 1000000000, StatisticsBufferSize: 1000, BasicAuth: "fooUser:fooPassword"})
+	assert.Nil(t, err)
+
+	cases := []struct {
+		name         string
+		username     string
+		password     string
+		expectedCode int
+	}{
+		{
+			name:         "Valid login",
+			username:     "fooUser",
+			password:     "fooPassword",
+			expectedCode: http.StatusOK},
+		{
+			name:         "Unknown user",
+			username:     "barUser",
+			password:     "fooPassword",
+			expectedCode: http.StatusUnauthorized},
+		{
+			name:         "Invalid password",
+			username:     "fooUser",
+			password:     "barPassword",
+			expectedCode: http.StatusUnauthorized}}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/status"), nil)
+			if err != nil {
+				c.t.Fatal(err)
+			}
+
+			req.SetBasicAuth(tc.username, tc.password)
+			rr := httptest.NewRecorder()
+			c.app.ServeHTTP(rr, req)
+
+			if rr.Code != tc.expectedCode {
+				c.t.Errorf("Wrong status code for status: got %v want %v", rr.Code, tc.expectedCode)
 			}
 		})
 	}
