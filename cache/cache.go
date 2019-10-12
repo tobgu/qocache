@@ -112,6 +112,7 @@ type CacheStats struct {
 }
 
 func (c *LruCache) Stats() CacheStats {
+	newTimesToEviction := make([]time.Duration, 0, maxStatHistory)
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -125,8 +126,9 @@ func (c *LruCache) Stats() CacheStats {
 		StatDuration:   lastStat.Sub(c.lastStat),
 	}
 	c.lastStat = lastStat
-	c.timesToEviction = make([]time.Duration, 0, maxStatHistory)
-
+	c.timesToEviction = newTimesToEviction
+	c.ageEvictionCount = 0
+	c.sizeEvictionCount = 0
 	return stat
 }
 

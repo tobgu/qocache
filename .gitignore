@@ -4,3 +4,4 @@ qocache
 *.out
 *.prof
 .idea
+/testclient

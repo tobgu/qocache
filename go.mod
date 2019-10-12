@@ -12,6 +12,6 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.1
 	github.com/stretchr/testify v1.2.2
-	github.com/tobgu/qframe v0.2.1
+	github.com/tobgu/qframe v0.2.2
 	golang.org/x/sys v0.0.0-20181221135038-a79f1b190785 // indirect
 )
