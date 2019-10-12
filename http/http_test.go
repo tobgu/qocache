@@ -25,6 +25,13 @@ import (
 	"testing"
 )
 
+func assertNotErr(t testing.TB, err error) {
+	t.Helper()
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
 func assertTrue(t *testing.T, val bool) {
 	t.Helper()
 	if !val {
@@ -81,8 +88,9 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 			if err != nil {
 				c.t.Fatalf("Error reading data for lz4 frame compression")
 			}
-			lz4Writer.Write(buf)
-			lz4Writer.Close()
+			_, err = lz4Writer.Write(buf)
+			assertNotErr(c.t, err)
+			assertNotErr(c.t, lz4Writer.Close())
 		}()
 	} else if headers["Content-Encoding"] == "lz4" {
 		srcBuf, err := ioutil.ReadAll(body)
@@ -130,7 +138,7 @@ func (c *testCache) insertCsvWithExpectedCode(key string, headers map[string]str
 	}
 
 	b := new(bytes.Buffer)
-	gocsv.Marshal(input, b)
+	assertNotErr(c.t, gocsv.Marshal(input, b))
 	rr := c.insertDataset(key, headers, b)
 
 	if rr.Code != code {
@@ -144,7 +152,7 @@ func (c *testCache) insertJson(key string, headers map[string]string, input inte
 	}
 
 	b := new(bytes.Buffer)
-	json.NewEncoder(b).Encode(input)
+	assertNotErr(c.t, json.NewEncoder(b).Encode(input))
 	if _, ok := headers["Content-Type"]; !ok {
 		headers["Content-Type"] = "application/json"
 	}
@@ -394,7 +402,7 @@ func TestQueryNonExistingKeyLz4(t *testing.T) {
 	cache := newTestCache(t)
 	rr := cache.queryJson("FOO", map[string]string{"Accept-Encoding": "lz4", "Expected-Encoding": ""}, "{}", "GET", nil)
 	assertEqual(t, rr.Code, http.StatusNotFound)
-	assertEqual(t, string(rr.Body.Bytes()), "Dataset 'FOO' not found")
+	assertEqual(t, rr.Body.String(), "Dataset 'FOO' not found")
 }
 
 func TestStatus(t *testing.T) {
@@ -741,7 +749,7 @@ func TestQueryWithSlice(t *testing.T) {
 			cache.insertJson("FOO", map[string]string{}, input)
 			rr := cache.queryJson("FOO", map[string]string{}, fmt.Sprintf(`{"offset": %d, "limit": %d}`, tc.offset, tc.limit), "GET", &output)
 			if tc.expectedStatusCode == 0 {
-				assertEqual(t, fmt.Sprintf("%d", len(input)), rr.HeaderMap.Get("X-QCache-unsliced-length"))
+				assertEqual(t, fmt.Sprintf("%d", len(input)), rr.Result().Header.Get("X-QCache-unsliced-length"))
 				compareTestData(t, output, tc.expected)
 				tc.expectedStatusCode = http.StatusOK
 			}

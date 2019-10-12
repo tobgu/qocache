@@ -53,7 +53,7 @@ func newCacheEntry(key string, item interface{}, itemSize int) cacheEntry {
 }
 
 func (ce *cacheEntry) hasExpired(maxAge time.Duration) bool {
-	return maxAge > 0 && time.Now().Sub(ce.createTime) > maxAge
+	return maxAge > 0 && time.Since(ce.createTime) > maxAge
 }
 
 func (c *LruCache) Put(key string, item interface{}, byteSize int) error {
@@ -139,7 +139,7 @@ func (c *LruCache) remove(elem *list.Element) bool {
 	}
 
 	entry := elem.Value.(cacheEntry)
-	timeToEviction := time.Now().Sub(entry.createTime)
+	timeToEviction := time.Since(entry.createTime)
 	if len(c.timesToEviction) < maxStatHistory {
 		c.timesToEviction = append(c.timesToEviction, timeToEviction)
 	}

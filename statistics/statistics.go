@@ -29,7 +29,7 @@ func (sp QueryProbe) Success() {
 	s := sp.stats
 	s.lock.Lock()
 	if s.sizeOkF(s.data.StoreDurations) {
-		s.data.QueryDurations = append(s.data.QueryDurations, time.Now().Sub(sp.startTime).Seconds())
+		s.data.QueryDurations = append(s.data.QueryDurations, time.Since(sp.startTime).Seconds())
 		s.data.HitCount++
 	}
 	s.lock.Unlock()
@@ -52,7 +52,7 @@ func (sp StoreProbe) Success(rowCount int) {
 	s.lock.Lock()
 	s.data.StoreCount++
 	if s.sizeOkF(s.data.StoreDurations) {
-		s.data.StoreDurations = append(s.data.StoreDurations, time.Now().Sub(sp.startTime).Seconds())
+		s.data.StoreDurations = append(s.data.StoreDurations, time.Since(sp.startTime).Seconds())
 		s.data.StoreRowCounts = append(s.data.StoreRowCounts, rowCount)
 	}
 	s.lock.Unlock()

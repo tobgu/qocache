@@ -27,9 +27,15 @@ type TestDataInts struct {
 	Qux int
 }
 
+func panicOnErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func marshalToCsv(data interface{}) *bytes.Reader {
 	b := new(bytes.Buffer)
-	gocsv.Marshal(data, b)
+	panicOnErr(gocsv.Marshal(data, b))
 	return bytes.NewReader(b.Bytes())
 }
 
@@ -71,7 +77,8 @@ func benchmarkLargeCache(b *testing.B, buf *bytes.Reader) {
 
 	// Insert data
 	for i := 0; i < datasetCount; i++ {
-		buf.Seek(0, io.SeekStart)
+		_, err := buf.Seek(0, io.SeekStart)
+		panicOnErr(err)
 		rr := cache.insertDataset(fmt.Sprintf("FOO%d", i), map[string]string{"Content-Type": "text/csv"}, buf)
 
 		if rr.Code != http.StatusCreated {
@@ -270,7 +277,8 @@ func createCsv(length, cardinality int) []byte {
 	}
 
 	b := new(bytes.Buffer)
-	b.ReadFrom(marshalToCsv(data))
+	_, err := b.ReadFrom(marshalToCsv(data))
+	panicOnErr(err)
 	return b.Bytes()
 }
 
@@ -291,8 +299,9 @@ func BenchmarkLargeCsvInsert(b *testing.B) {
 	b.Run("LZ4 compression", func(b *testing.B) {
 		dstBuf := new(bytes.Buffer)
 		lz4W := lz4.NewWriter(dstBuf)
-		lz4W.Write(buf)
-		lz4W.Close()
+		_, err := lz4W.Write(buf)
+		panicOnErr(err)
+		panicOnErr(lz4W.Close())
 		headers := map[string]string{"Content-Type": "text/csv", "Content-Encoding": "lz4"}
 
 		b.ResetTimer()

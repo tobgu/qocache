@@ -34,7 +34,7 @@ func NewServer(c config.Config, logger *log.Logger) (*Server, error) {
 
 	if c.CertFile != "" {
 		srv.TLSConfig = newTLSConfig(c, logger)
-		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0)
+		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 	}
 
 	return srv, nil

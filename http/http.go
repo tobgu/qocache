@@ -84,9 +84,7 @@ func headerToKeyValues(headers http.Header, headerName string) (map[string]inter
 			keyVals[k] = i
 		} else if f, err := strconv.ParseFloat(s, 64); err == nil {
 			keyVals[k] = f
-		} else {
-			// No need to do anything
-		}
+		} // else: No need to do anything
 	}
 
 	return keyVals, nil
@@ -188,6 +186,12 @@ func (a *application) log(msg string, params ...interface{}) string {
 	return result
 }
 
+func (a *application) logError(source string, err error) {
+	if err != nil {
+		a.logger.Printf("Error %s: %v", source, err)
+	}
+}
+
 func (a *application) badRequest(w http.ResponseWriter, msg string, params ...interface{}) {
 	http.Error(w, a.log(msg, params...), http.StatusBadRequest)
 }
@@ -238,7 +242,8 @@ func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.cache.Put(key, frame, frame.ByteSize())
+	err = a.cache.Put(key, frame, frame.ByteSize())
+	a.logError("Put new dataset in cache", err)
 	w.WriteHeader(http.StatusCreated)
 	statsProbe.Success(frame.Len())
 }
@@ -277,7 +282,8 @@ func formatContentType(ct string) string {
 func (a *application) queryDatasetGet(w http.ResponseWriter, r *http.Request) {
 	// The query is located in the URL
 	a.queryDataset(w, r, func(r *http.Request) (string, error) {
-		r.ParseForm()
+		err := r.ParseForm()
+		a.logError("Form parse query", err)
 		return r.Form.Get("q"), nil
 	})
 }
@@ -301,7 +307,8 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	item, ok := a.cache.Get(key)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(fmt.Sprintf("Dataset '%s' not found", key)))
+		_, err := w.Write([]byte(fmt.Sprintf("Dataset '%s' not found", key)))
+		a.logError("Query dataset write not found", err)
 		statsProbe.Missing()
 		return
 	}
@@ -321,7 +328,8 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	if columnAdded {
 		// Need to replace existing frame in cache since the new one contains
 		// additional columns.
-		a.cache.Put(key, frame, frame.ByteSize())
+		err := a.cache.Put(key, frame, frame.ByteSize())
+		a.logError("Column added put dataset in cache", err)
 	}
 
 	if qstring != "" {
@@ -371,11 +379,13 @@ func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", formatContentType(accept))
 	stats := a.stats.Stats()
 	enc := json.NewEncoder(w)
-	enc.Encode(stats)
+	err := enc.Encode(stats)
+	a.logError("Encoding stats", err)
 }
 
 func (a *application) status(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("OK"))
+	_, err := w.Write([]byte("OK"))
+	a.logError("Write status", err)
 }
 
 func attachProfiler(router *mux.Router) {
