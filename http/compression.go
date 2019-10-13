@@ -3,7 +3,7 @@ package http
 import (
 	"bufio"
 	"github.com/pierrec/lz4"
-	"github.com/tobgu/qframe/errors"
+	"github.com/tobgu/qframe/qerrors"
 	"io"
 	"net/http"
 	"strconv"
@@ -42,7 +42,7 @@ func (w *lz4BlockWriter) Close() error {
 		dst := make([]byte, lz4.CompressBlockBound(len(w.buf))+lz4BlockHeaderLen)
 		bufLen, err := lz4.CompressBlock(w.buf, dst[lz4BlockHeaderLen:], ht[:])
 		if err != nil {
-			return errors.Propagate("LZ4 block compress", err)
+			return qerrors.Propagate("LZ4 block compress", err)
 		}
 
 		if bufLen == 0 {
@@ -50,7 +50,7 @@ func (w *lz4BlockWriter) Close() error {
 			w.ResponseWriter.Header().Del("Content-Encoding")
 			_, err := w.ResponseWriter.Write(w.buf)
 			if err != nil {
-				return errors.Propagate("LZ4 block compress", err)
+				return qerrors.Propagate("LZ4 block compress", err)
 			}
 
 			return nil
@@ -63,7 +63,7 @@ func (w *lz4BlockWriter) Close() error {
 		storeLen(dst, uint32(len(w.buf)))
 		_, err = w.ResponseWriter.Write(dst[:bufLen+lz4BlockHeaderLen])
 		if err != nil {
-			return errors.Propagate("LZ4 block write", err)
+			return qerrors.Propagate("LZ4 block write", err)
 		}
 
 		return nil
@@ -102,7 +102,7 @@ func (r *lz4BlockReaderCloser) Read(b []byte) (int, error) {
 	if r.uncompressedBuf == nil {
 		l, err := r.bufLen()
 		if err != nil {
-			return 0, errors.Propagate("LZ4 block read buffer len", err)
+			return 0, qerrors.Propagate("LZ4 block read buffer len", err)
 		}
 
 		r.uncompressedBuf = make([]byte, int(l))
@@ -112,17 +112,17 @@ func (r *lz4BlockReaderCloser) Read(b []byte) (int, error) {
 			n, err := r.ReadCloser.Read(compressedBuf[bytesRead:])
 			bytesRead += n
 			if err != nil && err != io.EOF {
-				return 0, errors.Propagate("LZ4 block read buffer", err)
+				return 0, qerrors.Propagate("LZ4 block read buffer", err)
 			}
 		}
 
 		size, err := lz4.UncompressBlock(compressedBuf, r.uncompressedBuf)
 		if err != nil {
-			return 0, errors.Propagate("LZ4 block uncompress", err)
+			return 0, qerrors.Propagate("LZ4 block uncompress", err)
 		}
 
 		if size != len(r.uncompressedBuf) {
-			return 0, errors.New("LZ4 block uncompress len", "Unexpected uncompressed size, was: %d, expected: %d", size, len(r.uncompressedBuf))
+			return 0, qerrors.New("LZ4 block uncompress len", "Unexpected uncompressed size, was: %d, expected: %d", size, len(r.uncompressedBuf))
 		}
 	}
 
