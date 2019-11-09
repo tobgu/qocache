@@ -367,7 +367,7 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 
 func (a *application) statistics(w http.ResponseWriter, r *http.Request) {
 	accept := r.Header.Get("Accept")
-	if accept == "" {
+	if accept == "" || accept == "*/*" {
 		accept = contentTypeJson
 	}
 

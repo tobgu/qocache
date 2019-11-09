@@ -927,10 +927,8 @@ func TestBasicAuth(t *testing.T) {
 - Null stand ins?
 - In filter with sub query
 - Logging, should be pluggable, add request logging
-- Dependencies, go modules
 - README
 - Python integration tests
 - Response codes != 200 should not be compressed
 - Error responses, should they all be in JSON? Should we avoid compressing them?
-- Test what the actual memory consumption is compared to the configured.
 */
