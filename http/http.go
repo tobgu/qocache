@@ -197,7 +197,7 @@ func (a *application) badRequest(w http.ResponseWriter, msg string, params ...in
 }
 
 func (a *application) newDataset(w http.ResponseWriter, r *http.Request) {
-	statsProbe := a.stats.ProbeStore()
+	statsProbe := statistics.NewStoreProbe(r.Context())
 	defer r.Body.Close()
 	vars := mux.Vars(r)
 	key := vars["key"]
@@ -301,7 +301,7 @@ func (a *application) queryDatasetPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn func(r *http.Request) (string, error)) {
-	statsProbe := a.stats.ProbeQuery()
+	statsProbe := statistics.NewQueryProbe(r.Context())
 	vars := mux.Vars(r)
 	key := vars["key"]
 	item, ok := a.cache.Get(key)
@@ -407,6 +407,9 @@ func Application(conf config.Config, logger *log.Logger) (*mux.Router, error) {
 	r := mux.NewRouter()
 
 	middleWares := make([]middleware, 0)
+
+	middleWares = append(middleWares, withStatistics(s))
+
 	if conf.RequestLog {
 		middleWares = append(middleWares, withRequestLog(app))
 	}

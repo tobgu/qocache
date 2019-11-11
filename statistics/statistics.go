@@ -1,12 +1,20 @@
 package statistics
 
 import (
+	"context"
 	"github.com/tobgu/qocache/cache"
 	"runtime"
 	"sync"
 	"time"
 )
 
+// statCtxKey is a convenience type for context access
+type statCtxKey string
+
+const statCtxKeyStats statCtxKey = "stats"
+
+// Statistics is a global statistics collection object. Currently protected by a single
+// mutex. Shard mutex if this ever becomes a point of contention.
 type Statistics struct {
 	cache      *cache.LruCache
 	bufferSize int
@@ -15,47 +23,90 @@ type Statistics struct {
 	dataSince  time.Time
 }
 
-type probe struct {
-	startTime time.Time
-	stats     *Statistics
+type probe interface {
+	register(statistics *Statistics, totalDuration float64)
+}
+
+// probeProxy is a helper type to be able to store probes in a context further down the call stack
+type probeProxy struct {
+	creationTime time.Time
+	probe        probe
+	stats        *Statistics
+}
+
+func (pb *probeProxy) register() {
+	if pb.probe != nil {
+		pb.probe.register(pb.stats, time.Since(pb.creationTime).Seconds())
+	}
 }
 
 // QueryProbe is used to collect statistics related to querying datasets
 type QueryProbe struct {
-	probe
+	startTime time.Time
+	stopTime  time.Time
+	isHit     bool
 }
 
-func (sp QueryProbe) Success() {
-	s := sp.stats
-	s.lock.Lock()
-	if s.sizeOkF(s.data.StoreDurations) {
-		s.data.QueryDurations = append(s.data.QueryDurations, time.Since(sp.startTime).Seconds())
-		s.data.HitCount++
+func (sp *QueryProbe) Success() {
+	sp.isHit = true
+	sp.stopTime = time.Now()
+}
+
+func (sp *QueryProbe) Missing() {
+	sp.isHit = false
+}
+
+func (sp *QueryProbe) register(stats *Statistics, totalDuration float64) {
+	stats.lock.Lock()
+	if sp.isHit {
+		stats.data.HitCount++
+		if stats.sizeOkF(stats.data.QueryDurations) {
+			stats.data.QueryDurations = append(stats.data.QueryDurations, sp.stopTime.Sub(sp.startTime).Seconds())
+			stats.data.TotalQueryDurations = append(stats.data.TotalQueryDurations, totalDuration)
+		}
+	} else {
+		stats.data.MissCount++
 	}
-	s.lock.Unlock()
+	stats.lock.Unlock()
 }
 
-func (sp QueryProbe) Missing() {
-	s := sp.stats
-	s.lock.Lock()
-	s.data.MissCount++
-	s.lock.Unlock()
+func NewQueryProbe(ctx context.Context) *QueryProbe {
+	p := &QueryProbe{startTime: time.Now()}
+	ctx.Value(statCtxKeyStats).(*probeProxy).probe = p
+	return p
 }
 
 // StoreProbe is used to collect statistics related to storing datasets
 type StoreProbe struct {
-	probe
+	startTime time.Time
+	stopTime  time.Time
+	rowCount  int
+	success   bool
 }
 
-func (sp StoreProbe) Success(rowCount int) {
-	s := sp.stats
-	s.lock.Lock()
-	s.data.StoreCount++
-	if s.sizeOkF(s.data.StoreDurations) {
-		s.data.StoreDurations = append(s.data.StoreDurations, time.Since(sp.startTime).Seconds())
-		s.data.StoreRowCounts = append(s.data.StoreRowCounts, rowCount)
+func (sp *StoreProbe) Success(rowCount int) {
+	sp.success = true
+	sp.stopTime = time.Now()
+	sp.rowCount = rowCount
+}
+
+func (sp *StoreProbe) register(stats *Statistics, totalDuration float64) {
+	if sp.success {
+		stats.lock.Lock()
+		stats.data.StoreCount++
+		if stats.sizeOkF(stats.data.StoreDurations) {
+			stats.data.StoreDurations = append(stats.data.StoreDurations, sp.stopTime.Sub(sp.startTime).Seconds())
+			stats.data.TotalStoreDurations = append(stats.data.TotalStoreDurations, totalDuration)
+			stats.data.StoreRowCounts = append(stats.data.StoreRowCounts, sp.rowCount)
+		}
+		stats.lock.Unlock()
 	}
-	s.lock.Unlock()
+}
+
+func NewStoreProbe(ctx context.Context) *StoreProbe {
+	p := &StoreProbe{startTime: time.Now()}
+	ctx.Value(statCtxKeyStats).(*probeProxy).probe = p
+	return p
 }
 
 func New(cache *cache.LruCache, bufferSize int) *Statistics {
@@ -73,6 +124,8 @@ func newStatisticsData(bufferSize int) StatisticsData {
 		StoreRowCounts:         make([]int, 0, bufferSize),
 		QueryDurations:         make([]float64, 0, bufferSize),
 		DurationsUntilEviction: make([]float64, 0, bufferSize),
+		TotalQueryDurations:    make([]float64, 0, bufferSize),
+		TotalStoreDurations:    make([]float64, 0, bufferSize),
 	}
 }
 
@@ -80,16 +133,13 @@ func (s *Statistics) sizeOkF(x []float64) bool {
 	return len(x) < s.bufferSize
 }
 
-func newProbe(s *Statistics) probe {
-	return probe{startTime: time.Now(), stats: s}
+func (s *Statistics) Init(ctx context.Context) context.Context {
+	return context.WithValue(ctx, statCtxKeyStats, &probeProxy{creationTime: time.Now(), stats: s})
 }
 
-func (s *Statistics) ProbeStore() StoreProbe {
-	return StoreProbe{newProbe(s)}
-}
-
-func (s *Statistics) ProbeQuery() QueryProbe {
-	return QueryProbe{newProbe(s)}
+func (s *Statistics) Register(ctx context.Context) {
+	box := ctx.Value(statCtxKeyStats).(*probeProxy)
+	box.register()
 }
 
 // Memstats is basically a subset of runtime.GoMemStats
@@ -121,6 +171,10 @@ type StatisticsData struct {
 	QueryDurations         []float64  `json:"query_durations,omitempty"`
 	DurationsUntilEviction []float64  `json:"durations_until_eviction,omitempty"`
 	GoMemStats             GoMemStats `json:"go_mem_stats"`
+
+	// JSON names differ for compatibility with QCache metric names
+	TotalQueryDurations []float64 `json:"query_request_durations"`
+	TotalStoreDurations []float64 `json:"store_request_durations"`
 }
 
 func durationsToSeconds(d []time.Duration) []float64 {
@@ -133,12 +187,12 @@ func durationsToSeconds(d []time.Duration) []float64 {
 
 func (s *Statistics) Stats() StatisticsData {
 	memStats := getMemstats()
+	newStatData := newStatisticsData(s.bufferSize)
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	now := time.Now()
 	cs := s.cache.Stats()
-
 	stats := s.data
 	stats.DatasetCount = cs.ItemCount
 	stats.CacheSize = cs.ByteSize
@@ -148,8 +202,7 @@ func (s *Statistics) Stats() StatisticsData {
 	stats.StatisticsDuration = now.Sub(s.dataSince).Seconds()
 	stats.StatisticsBufferSize = s.bufferSize
 	stats.GoMemStats = memStats
-
-	s.data = newStatisticsData(s.bufferSize)
+	s.data = newStatData
 	s.dataSince = now
 
 	return stats
