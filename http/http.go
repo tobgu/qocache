@@ -358,8 +358,8 @@ func (a *application) queryDataset(w http.ResponseWriter, r *http.Request, qFn f
 	}
 
 	if err != nil {
-		// TODO: Investigate which errors that should panic
-		a.logger.Fatalf("Failed writing response: %v", err)
+		// Panic for now, will be picked up by recover middleware
+		panic(fmt.Sprintf("Failed writing query response: %v", err))
 	}
 
 	statsProbe.Success()
@@ -407,7 +407,7 @@ func Application(conf config.Config, logger *log.Logger) (*mux.Router, error) {
 	r := mux.NewRouter()
 
 	middleWares := make([]middleware, 0)
-
+	middleWares = append(middleWares, withRecover(logger))
 	middleWares = append(middleWares, withStatistics(s))
 
 	if conf.RequestLog {
