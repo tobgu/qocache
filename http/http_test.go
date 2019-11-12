@@ -11,14 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tobgu/qocache/config"
 	h "github.com/tobgu/qocache/http"
+	"github.com/tobgu/qocache/qlog"
 	"github.com/tobgu/qocache/statistics"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -71,7 +70,7 @@ func newTestCache(t testing.TB) *testCache {
 
 func newTestCacheWithConfig(t testing.TB, c config.Config) (*testCache, error) {
 	t.Helper()
-	app, err := h.Application(c, log.New(os.Stderr, "qocache-test", log.LstdFlags))
+	app, err := h.Application(c, qlog.NewStdLogger(c.UseSyslog))
 	return &testCache{t: t, app: app}, err
 }
 
@@ -482,7 +481,7 @@ func TestStandinColumns(t *testing.T) {
 		{{"X", "'Bar'", "Bar"}, {"Y", "S", "Foo"}},
 
 		// Stand in from float constant
-		{{"X", 1.5, 1.5}},
+		{{"X", 1.50, 1.5}},
 
 		// Stand in from int constant, expect float because of Go JSON decoding in test case, leave like this for now.
 		{{"X", 2, 2.0}},

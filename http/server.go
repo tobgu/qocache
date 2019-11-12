@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"github.com/tobgu/qocache/config"
+	"github.com/tobgu/qocache/qlog"
 	"io/ioutil"
-	"log"
 	"net/http"
 )
 
@@ -22,7 +22,7 @@ func (s *Server) ListAndServeAsConfigured() error {
 	return s.ListenAndServe()
 }
 
-func NewServer(c config.Config, logger *log.Logger) (*Server, error) {
+func NewServer(c config.Config, logger qlog.Logger) (*Server, error) {
 	app, err := Application(c, logger)
 	if err != nil {
 		return nil, err
@@ -33,14 +33,17 @@ func NewServer(c config.Config, logger *log.Logger) (*Server, error) {
 	}
 
 	if c.CertFile != "" {
-		srv.TLSConfig = newTLSConfig(c, logger)
+		srv.TLSConfig, err = newTLSConfig(c, logger)
+		if err != nil {
+			return nil, err
+		}
 		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 	}
 
 	return srv, nil
 }
 
-func newTLSConfig(c config.Config, logger *log.Logger) *tls.Config {
+func newTLSConfig(c config.Config, logger qlog.Logger) (*tls.Config, error) {
 	logger.Printf("Using server side TLS")
 	cfg := &tls.Config{
 		MinVersion:               tls.VersionTLS12,
@@ -58,7 +61,7 @@ func newTLSConfig(c config.Config, logger *log.Logger) *tls.Config {
 		logger.Printf("Verifying client certificates")
 		clientCACert, err := ioutil.ReadFile(c.CAFile)
 		if err != nil {
-			logger.Fatal("Unable to open CA cert", err)
+			return nil, fmt.Errorf("unable to open CA cert: %v", err)
 		}
 
 		clientCertPool := x509.NewCertPool()
@@ -68,5 +71,5 @@ func newTLSConfig(c config.Config, logger *log.Logger) *tls.Config {
 		cfg.ClientCAs = clientCertPool
 	}
 
-	return cfg
+	return cfg, nil
 }

@@ -2,11 +2,11 @@ package http
 
 import (
 	"crypto/subtle"
-	"log"
+	"github.com/tobgu/qocache/qlog"
 	"net/http"
 )
 
-func withBasicAuth(logger *log.Logger, confUser, confPassword string) middleware {
+func withBasicAuth(logger qlog.Logger, confUser, confPassword string) middleware {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			reqUser, reqPass, ok := r.BasicAuth()

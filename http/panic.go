@@ -2,8 +2,8 @@ package http
 
 import (
 	"fmt"
+	"github.com/tobgu/qocache/qlog"
 	"hash/fnv"
-	"log"
 	"net/http"
 	"runtime/debug"
 )
@@ -14,7 +14,7 @@ func hash(s string) uint64 {
 	return h.Sum64()
 }
 
-func withRecover(logger *log.Logger) middleware {
+func withRecover(logger qlog.Logger) middleware {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			defer func() {

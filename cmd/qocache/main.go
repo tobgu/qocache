@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/tobgu/qocache/config"
 	qhttp "github.com/tobgu/qocache/http"
+	"github.com/tobgu/qocache/qlog"
 	"log"
 	"net/http"
 	"os"
@@ -13,14 +14,14 @@ import (
 
 func main() {
 	c, err := config.GetConfig()
-	logger := log.New(os.Stderr, "qocache", log.LstdFlags)
 	if err != nil {
-		logger.Fatalf("Configuration error: %s", err.Error())
+		log.Fatalf("Configuration error: %s", err.Error())
 	}
 
+	logger := qlog.NewStdLogger(c.UseSyslog)
 	srv, err := qhttp.NewServer(c, logger)
 	if err != nil {
-		logger.Fatalf("Configuration error: %s", err.Error())
+		logger.Fatalf("Server setup error: %s", err.Error())
 	}
 
 	logger.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)

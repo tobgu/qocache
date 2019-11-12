@@ -10,11 +10,11 @@ import (
 	"github.com/tobgu/qframe/types"
 	"github.com/tobgu/qocache/cache"
 	"github.com/tobgu/qocache/config"
+	"github.com/tobgu/qocache/qlog"
 	"github.com/tobgu/qocache/query"
 	"github.com/tobgu/qocache/statistics"
 	qostrings "github.com/tobgu/qocache/strings"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/pprof"
 	"regexp"
@@ -31,7 +31,7 @@ const (
 type application struct {
 	cache  cache.Cache
 	stats  *statistics.Statistics
-	logger *log.Logger
+	logger qlog.Logger
 }
 
 var charsetRegex = regexp.MustCompile("charset=([A-Za-z0-9_-]+)")
@@ -182,7 +182,7 @@ func parseContentType(h string) (string, string) {
 
 func (a *application) log(msg string, params ...interface{}) string {
 	result := fmt.Sprintf(msg, params...)
-	a.logger.Println(result)
+	a.logger.Printf(result)
 	return result
 }
 
@@ -400,7 +400,7 @@ func attachProfiler(router *mux.Router) {
 	router.Handle("/debug/pprof/block", pprof.Handler("block"))
 }
 
-func Application(conf config.Config, logger *log.Logger) (*mux.Router, error) {
+func Application(conf config.Config, logger qlog.Logger) (*mux.Router, error) {
 	c := cache.New(conf.Size, time.Duration(conf.Age)*time.Second)
 	s := statistics.New(c, conf.StatisticsBufferSize)
 	app := &application{cache: c, stats: s, logger: logger}
