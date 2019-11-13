@@ -140,7 +140,7 @@ func headersToCsvConfig(headers http.Header) ([]csv.ConfigFunc, error) {
 		}
 	}
 
-	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals), csv.EmptyNull(true), csv.RowCountHint(rowCountHint)}, nil
+	return []csv.ConfigFunc{csv.Types(typs), csv.EnumValues(enumVals), csv.EmptyNull(true), csv.RowCountHint(rowCountHint), csv.IgnoreEmptyLines(true)}, nil
 }
 
 func headersToJsonConfig(headers http.Header) ([]newqf.ConfigFunc, error) {

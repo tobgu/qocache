@@ -925,6 +925,25 @@ func TestBasicAuth(t *testing.T) {
 	}
 }
 
+func TestCsvWithEmptyLinesAccepted(t *testing.T) {
+	cache := newTestCache(t)
+	headers := map[string]string{"Content-Type": "text/csv; charset=utf-8"}
+	csv := `S,I
+aaa,1
+
+bbb,2
+`
+	rr := cache.insertDataset("FOO", headers, strings.NewReader(csv))
+	assertEqual(t, http.StatusCreated, rr.Code)
+
+	output := make([]TestData, 0)
+	rr = cache.queryJson("FOO", map[string]string{}, "{}", "GET", &output)
+	assertEqual(t, http.StatusOK, rr.Code)
+
+	expected := []TestData{{S: "aaa", I: 1}, {S: "bbb", I: 2}}
+	assertEqual(t, expected, output)
+}
+
 /* TODO
 - Fix integer JSON parsing for generic maps in tests, right now they become floats
 - Null stand ins?
