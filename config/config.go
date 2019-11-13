@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"strings"
 )
 
 /*
@@ -37,6 +38,7 @@ func init() {
 	viper.SetConfigName("qocache-conf")
 	viper.AddConfigPath(".")
 	viper.SetEnvPrefix("QOCACHE")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 	addIntParameter("port", "p", "Port to bind to", 8888)
 	addIntParameter("size", "s", "Max cache size in bytes", 1000000000)
