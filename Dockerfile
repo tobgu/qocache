@@ -1,5 +1,7 @@
-from golang:1.11.4
+FROM golang:1.13.4
 
-RUN go get github.com/tobgu/qocache/cmd/qocache
+WORKDIR /qocache
+COPY . .
+RUN make build
 
-CMD ["sh", "-c", "qocache"]
+CMD ["sh", "-c", "/qocache/qocache"]

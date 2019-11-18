@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 )
 
@@ -24,7 +25,7 @@ func main() {
 		logger.Fatalf("Server setup error: %s", err.Error())
 	}
 
-	logger.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, \n", c.Age, c.Size, c.Port)
+	logger.Printf("Starting qocache, MaxAge: %d, MaxSize: %d, Port: %d, GOMAXPROCS: %d\n", c.Age, c.Size, c.Port, runtime.GOMAXPROCS(0))
 	idleConnsClosed := make(chan struct{})
 	go func() {
 		sigint := make(chan os.Signal, 1)
