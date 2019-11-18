@@ -70,7 +70,7 @@ func newTestCache(t testing.TB) *testCache {
 
 func newTestCacheWithConfig(t testing.TB, c config.Config) (*testCache, error) {
 	t.Helper()
-	app, err := h.Application(c, qlog.NewStdLogger(c.UseSyslog))
+	app, err := h.Application(c, qlog.NewStdLogger(c.UseSyslog, c.LogDestination))
 	return &testCache{t: t, app: app}, err
 }
 

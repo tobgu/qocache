@@ -1,6 +1,7 @@
 package qlog
 
 import (
+	"io"
 	"log"
 	"os"
 )
@@ -9,16 +10,27 @@ type Logger interface {
 	Printf(fmt string, args ...interface{})
 }
 
-func NewStdLogger(useSysLog bool) *log.Logger {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+func NewStdLogger(useSysLog bool, logDestination string) *log.Logger {
 	if useSysLog {
-		if w, err := getSyslog(); err == nil {
-			logger.Println("Using syslog as destination, no more lines will appear on stderr after this line")
-			logger.SetOutput(w)
-			logger.SetFlags(0)
-		} else {
-			logger.Printf("Error configuring syslog, will log to stderr: %v", err)
-		}
+		logDestination = "syslog"
 	}
-	return logger
+
+	flag := log.LstdFlags
+	var dest io.Writer = os.Stderr
+	if logDestination == "syslog" {
+		if w, err := getSyslog(); err == nil {
+			log.Println("Logging to syslog, no more lines will appear on stderr after this line")
+			dest = w
+			flag = 0
+		} else {
+			log.Printf("Erron setting up syslog: %v, will log to stderr", err)
+		}
+	} else if logDestination == "stdout" {
+		log.Println("Logging to stdout")
+		dest = os.Stdout
+	} else {
+		log.Println("Logging to stderr")
+	}
+
+	return log.New(dest, "", flag)
 }

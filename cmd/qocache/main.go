@@ -19,7 +19,7 @@ func main() {
 		log.Fatalf("Configuration error: %s", err.Error())
 	}
 
-	logger := qlog.NewStdLogger(c.UseSyslog)
+	logger := qlog.NewStdLogger(c.UseSyslog, c.LogDestination)
 	srv, err := qhttp.NewServer(c, logger)
 	if err != nil {
 		logger.Fatalf("Server setup error: %s", err.Error())
