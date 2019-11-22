@@ -31,6 +31,7 @@ type LruCache struct {
 	timesToEviction   []time.Duration
 	ageEvictionCount  int
 	sizeEvictionCount int
+	replaceCount      int
 	lastStat          time.Time
 }
 
@@ -61,7 +62,8 @@ func (c *LruCache) Put(key string, item interface{}, byteSize int) error {
 	defer c.lock.Unlock()
 
 	if elem, ok := c.keyMap[key]; ok {
-		c.remove(elem)
+		c.remove(elem, false)
+		c.replaceCount++
 	}
 
 	newEntry := newCacheEntry(key, item, byteSize)
@@ -69,7 +71,7 @@ func (c *LruCache) Put(key string, item interface{}, byteSize int) error {
 	// Evict old entries if needed to fit new entry in cache
 	for c.currentSize+newEntry.size > c.maxSize {
 		elem := c.lruList.Back()
-		removed := c.remove(elem)
+		removed := c.remove(elem, true)
 		if !removed {
 			return fmt.Errorf("cannot fit %d bytes in cache", newEntry.size)
 		}
@@ -93,7 +95,7 @@ func (c *LruCache) Get(key string) (interface{}, bool) {
 
 	entry := elem.Value.(cacheEntry)
 	if entry.hasExpired(c.maxAge) {
-		c.remove(elem)
+		c.remove(elem, true)
 		c.ageEvictionCount++
 		return nil, false
 	}
@@ -108,6 +110,7 @@ type CacheStats struct {
 	ItemCount      int
 	AgeEvictCount  int
 	SizeEvictCount int
+	ReplaceCount   int
 	StatDuration   time.Duration
 }
 
@@ -123,24 +126,26 @@ func (c *LruCache) Stats() CacheStats {
 		ItemCount:      len(c.keyMap),
 		AgeEvictCount:  c.ageEvictionCount,
 		SizeEvictCount: c.sizeEvictionCount,
+		ReplaceCount:   c.replaceCount,
 		StatDuration:   lastStat.Sub(c.lastStat),
 	}
 	c.lastStat = lastStat
 	c.timesToEviction = newTimesToEviction
 	c.ageEvictionCount = 0
 	c.sizeEvictionCount = 0
+	c.replaceCount = 0
 	return stat
 }
 
 // Returns true if the element is removed, false otherwise
-func (c *LruCache) remove(elem *list.Element) bool {
+func (c *LruCache) remove(elem *list.Element, isEvicted bool) bool {
 	if elem == nil {
 		return false
 	}
 
 	entry := elem.Value.(cacheEntry)
 	timeToEviction := time.Since(entry.createTime)
-	if len(c.timesToEviction) < maxStatHistory {
+	if isEvicted && len(c.timesToEviction) < maxStatHistory {
 		c.timesToEviction = append(c.timesToEviction, timeToEviction)
 	}
 

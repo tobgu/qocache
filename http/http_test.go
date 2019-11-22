@@ -306,6 +306,7 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo«ταБЬℓσ»", I: 123, F: 1.5, B: true}}
 	cache.insertCsv("FOO", nil, input)
+	cache.insertCsv("FOO", nil, input)
 
 	rr := cache.queryDataset("FOO", map[string]string{"Accept": "text/csv"}, "{}", "GET")
 	if rr.Code != http.StatusOK {
@@ -331,15 +332,16 @@ func TestBasicInsertAndQueryCsv(t *testing.T) {
 	assertTrue(t, 0 < stats.StatisticsDuration && stats.StatisticsDuration < 1.0)
 	assertEqual(t, 1, stats.DatasetCount)
 	assertEqual(t, 1, stats.HitCount)
+	assertEqual(t, 1, stats.ReplaceCount)
 	assertEqual(t, 1, len(stats.QueryDurations))
 	assertTrue(t, stats.QueryDurations[0] > 0)
 	assertEqual(t, 1, len(stats.TotalQueryDurations))
 	assertTrue(t, stats.TotalQueryDurations[0] >= stats.QueryDurations[0])
-	assertEqual(t, 1, len(stats.StoreDurations))
+	assertEqual(t, 2, len(stats.StoreDurations))
 	assertTrue(t, stats.StoreDurations[0] > 0)
-	assertEqual(t, 1, len(stats.TotalStoreDurations))
+	assertEqual(t, 2, len(stats.TotalStoreDurations))
 	assertTrue(t, stats.TotalStoreDurations[0] >= stats.StoreDurations[0])
-	assertEqual(t, 1, len(stats.StoreRowCounts))
+	assertEqual(t, 2, len(stats.StoreRowCounts))
 	assertEqual(t, 1, stats.StoreRowCounts[0])
 	assertTrue(t, stats.CacheSize > 0)
 	assertEqual(t, 0, stats.MissCount)

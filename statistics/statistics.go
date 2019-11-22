@@ -163,6 +163,7 @@ type StatisticsData struct {
 	MissCount              int        `json:"miss_count"`
 	SizeEvictCount         int        `json:"size_evict_count"`
 	AgeEvictCount          int        `json:"age_evict_count"`
+	ReplaceCount           int        `json:"replace_count"`
 	StoreCount             int        `json:"store_count"`
 	StatisticsDuration     float64    `json:"statistics_duration"`
 	StatisticsBufferSize   int        `json:"statistics_buffer_size"`
@@ -198,6 +199,7 @@ func (s *Statistics) Stats() StatisticsData {
 	stats.CacheSize = cs.ByteSize
 	stats.SizeEvictCount = cs.SizeEvictCount
 	stats.AgeEvictCount = cs.AgeEvictCount
+	stats.ReplaceCount = cs.ReplaceCount
 	stats.DurationsUntilEviction = durationsToSeconds(cs.TimeToEviction)
 	stats.StatisticsDuration = now.Sub(s.dataSince).Seconds()
 	stats.StatisticsBufferSize = s.bufferSize
