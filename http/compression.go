@@ -169,6 +169,10 @@ func withLz4(app *application) middleware {
 
 				// Want to buffer this to avoid calling CompressBlock on every write
 				lz4Writer := lz4.NewWriter(w)
+
+				// TODO: This needs to be set for the decompression to be quick
+				// lz4Writer.Size = 12345
+
 				bufferedWriter := bufio.NewWriterSize(lz4Writer, lz4MaxBlockSize)
 				w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: bufferedWriter}
 
