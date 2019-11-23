@@ -2,6 +2,7 @@ package http
 
 import (
 	"bufio"
+	"bytes"
 	"github.com/pierrec/lz4"
 	"github.com/tobgu/qframe/qerrors"
 	"io"
@@ -28,19 +29,18 @@ func (w lz4WriterWrapper) Write(p []byte) (int, error) {
 
 type lz4BlockWriter struct {
 	http.ResponseWriter
-	buf []byte
+	buf *bytes.Buffer
 }
 
 func (w *lz4BlockWriter) Write(b []byte) (int, error) {
-	w.buf = append(w.buf, b...)
-	return len(b), nil
+	return w.buf.Write(b)
 }
 
 func (w *lz4BlockWriter) Close() error {
-	if len(w.buf) > 0 {
+	if w.buf.Len() > 0 {
 		var ht [1 << 16]int
-		dst := make([]byte, lz4.CompressBlockBound(len(w.buf))+lz4BlockHeaderLen)
-		bufLen, err := lz4.CompressBlock(w.buf, dst[lz4BlockHeaderLen:], ht[:])
+		dst := make([]byte, lz4.CompressBlockBound(w.buf.Len()+lz4BlockHeaderLen))
+		bufLen, err := lz4.CompressBlock(w.buf.Bytes(), dst[lz4BlockHeaderLen:], ht[:])
 		if err != nil {
 			return qerrors.Propagate("LZ4 block compress", err)
 		}
@@ -48,7 +48,7 @@ func (w *lz4BlockWriter) Close() error {
 		if bufLen == 0 {
 			// Content uncompressible, return as is
 			w.ResponseWriter.Header().Del("Content-Encoding")
-			_, err := w.ResponseWriter.Write(w.buf)
+			_, err := w.ResponseWriter.Write(w.buf.Bytes())
 			if err != nil {
 				return qerrors.Propagate("LZ4 block compress", err)
 			}
@@ -60,7 +60,7 @@ func (w *lz4BlockWriter) Close() error {
 		// 4 Gb but is interoperable with the Python lib. Could be changed to some out of band
 		// transmission (an HTTP header?) to allow for bigger sizes and potentially interop with
 		// other libraries.
-		storeLen(dst, uint32(len(w.buf)))
+		storeLen(dst, uint32(w.buf.Len()))
 		_, err = w.ResponseWriter.Write(dst[:bufLen+lz4BlockHeaderLen])
 		if err != nil {
 			return qerrors.Propagate("LZ4 block write", err)
@@ -180,7 +180,7 @@ func withLz4(app *application) middleware {
 				defer bufferedWriter.Flush()
 			} else if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4") {
 				w.Header().Set("Content-Encoding", "lz4")
-				blockWriter := &lz4BlockWriter{ResponseWriter: w}
+				blockWriter := &lz4BlockWriter{ResponseWriter: w, buf: &bytes.Buffer{}}
 				w = blockWriter
 				defer blockWriter.Close()
 			}
