@@ -72,7 +72,7 @@ func headerToKeyValues(headers http.Header, headerName string) (map[string]inter
 		if kv != "" {
 			kvSlice := strings.Split(kv, "=")
 			if len(kvSlice) != 2 {
-				return nil, fmt.Errorf("invalid key=value pair in X-QCache-keyVals: %s", kv)
+				return nil, fmt.Errorf("invalid key=value pair in %s: %s", headerName, kv)
 			}
 			keyVals[trim(kvSlice[0])] = trim(kvSlice[1])
 		}
