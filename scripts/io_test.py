@@ -24,7 +24,7 @@ def block_lz4er(data):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Upload and query IO/serialization performance and compatibility test')
     parser.add_argument('--lz4-block-uploads', type=int, default=0)
-    parser.add_argument('--lz4-block-queries', type=int, default=100)
+    parser.add_argument('--lz4-block-queries', type=int, default=0)
     parser.add_argument('--lz4-frame-uploads', type=int, default=0)
     parser.add_argument('--lz4-frame-queries', type=int, default=0)
     parser.add_argument('--plain-uploads', type=int, default=0)
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         qt = time.time() - t0
         t0 = time.time()
         dr = lz4.frame.decompress(r.content)
-        print("LZ4 frame query time: {} s, decompress time: {}, comp size: {}, uncomp size: {}, prefix: {}".format(qt, time.time() - t0, len(r.content), len(dr), dr[:200]))
+        print("LZ4 frame query time: {} s, decompress time: {}, comp size: {}, uncomp size: {}".format(qt, time.time() - t0, len(r.content), len(dr)))
 
     block_uploads = max(args.lz4_block_uploads, int(args.lz4_block_queries > 0))
     for _ in range(block_uploads):

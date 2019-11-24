@@ -325,7 +325,7 @@ func BenchmarkLargeJsonGet(b *testing.B) {
 	cache := newTestCache(b)
 	cache.insertDatasetRaw("A", map[string]string{"Content-Type": "text/csv"}, buf)
 
-	for _, acceptEncoding := range []string{"lz4", "none"} {
+	for _, acceptEncoding := range []string{"lz4", "lz4-frame", "none"} {
 		b.Run(acceptEncoding, func(b *testing.B) {
 			headers := map[string]string{"Accept": "application/json", "Accept-Encoding": acceptEncoding}
 

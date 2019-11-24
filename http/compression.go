@@ -1,35 +1,49 @@
 package http
 
 import (
-	"bufio"
 	"bytes"
 	"github.com/pierrec/lz4"
 	"github.com/tobgu/qframe/qerrors"
+	"github.com/tobgu/qocache/qlog"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
-const lz4MaxBlockSize = 4 << 20
-
 type lz4ReaderCloserWrapper struct {
 	io.Reader
 	io.Closer
 }
 
-type lz4WriterWrapper struct {
+type lz4FrameWriter struct {
 	http.ResponseWriter
-	lz4Writer io.Writer
+	buf    *bytes.Buffer
+	logger qlog.Logger
 }
 
-func (w lz4WriterWrapper) Write(p []byte) (int, error) {
-	return w.lz4Writer.Write(p)
+func (w *lz4FrameWriter) Write(p []byte) (int, error) {
+	return w.buf.Write(p)
+}
+
+func (w *lz4FrameWriter) Close() error {
+	lz4Writer := lz4.NewWriter(w.ResponseWriter)
+	lz4Writer.Size = uint64(w.buf.Len())
+
+	_, err := lz4Writer.Write(w.buf.Bytes())
+	if err != nil {
+		err = qerrors.Propagate("LZ4 frame compress", err)
+		w.logger.Printf("Error compressing: %v", err)
+		return err
+	}
+
+	return lz4Writer.Close()
 }
 
 type lz4BlockWriter struct {
 	http.ResponseWriter
-	buf *bytes.Buffer
+	buf    *bytes.Buffer
+	logger qlog.Logger
 }
 
 func (w *lz4BlockWriter) Write(b []byte) (int, error) {
@@ -42,7 +56,9 @@ func (w *lz4BlockWriter) Close() error {
 		dst := make([]byte, lz4.CompressBlockBound(w.buf.Len()+lz4BlockHeaderLen))
 		bufLen, err := lz4.CompressBlock(w.buf.Bytes(), dst[lz4BlockHeaderLen:], ht[:])
 		if err != nil {
-			return qerrors.Propagate("LZ4 block compress", err)
+			err = qerrors.Propagate("LZ4 block compress", err)
+			w.logger.Printf("Error compressing: %v", err)
+			return err
 		}
 
 		if bufLen == 0 {
@@ -50,7 +66,9 @@ func (w *lz4BlockWriter) Close() error {
 			w.ResponseWriter.Header().Del("Content-Encoding")
 			_, err := w.ResponseWriter.Write(w.buf.Bytes())
 			if err != nil {
-				return qerrors.Propagate("LZ4 block compress", err)
+				err = qerrors.Propagate("LZ4 block compress", err)
+				w.logger.Printf("Error writing uncompressed: %v", err)
+				return err
 			}
 
 			return nil
@@ -63,7 +81,9 @@ func (w *lz4BlockWriter) Close() error {
 		storeLen(dst, uint32(w.buf.Len()))
 		_, err = w.ResponseWriter.Write(dst[:bufLen+lz4BlockHeaderLen])
 		if err != nil {
-			return qerrors.Propagate("LZ4 block write", err)
+			err = qerrors.Propagate("LZ4 block write", err)
+			w.logger.Printf("Error writing compressed: %v", err)
+			return err
 		}
 
 		return nil
@@ -166,18 +186,9 @@ func withLz4(app *application) middleware {
 
 			if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4-frame") {
 				w.Header().Set("Content-Encoding", "lz4-frame")
-
-				// Want to buffer this to avoid calling CompressBlock on every write
-				lz4Writer := lz4.NewWriter(w)
-
-				// TODO: This needs to be set for the decompression to be quick
-				// lz4Writer.Size = 12345
-
-				bufferedWriter := bufio.NewWriterSize(lz4Writer, lz4MaxBlockSize)
-				w = lz4WriterWrapper{ResponseWriter: w, lz4Writer: bufferedWriter}
-
-				defer lz4Writer.Close()
-				defer bufferedWriter.Flush()
+				frameWriter := &lz4FrameWriter{ResponseWriter: w, buf: &bytes.Buffer{}, logger: app.logger}
+				w = frameWriter
+				defer frameWriter.Close()
 			} else if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4") {
 				w.Header().Set("Content-Encoding", "lz4")
 				blockWriter := &lz4BlockWriter{ResponseWriter: w, buf: &bytes.Buffer{}}
