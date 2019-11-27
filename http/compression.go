@@ -61,8 +61,9 @@ func (w *lz4BlockWriter) Close() error {
 			return err
 		}
 
-		if bufLen == 0 {
+		if bufLen == 0 || bufLen >= w.buf.Len() {
 			// Content uncompressible, return as is
+			w.logger.Printf("Uncompressible content!")
 			w.ResponseWriter.Header().Del("Content-Encoding")
 			_, err := w.ResponseWriter.Write(w.buf.Bytes())
 			if err != nil {
@@ -191,7 +192,7 @@ func withLz4(app *application) middleware {
 				defer frameWriter.Close()
 			} else if strings.Contains(r.Header.Get("Accept-Encoding"), "lz4") {
 				w.Header().Set("Content-Encoding", "lz4")
-				blockWriter := &lz4BlockWriter{ResponseWriter: w, buf: &bytes.Buffer{}}
+				blockWriter := &lz4BlockWriter{ResponseWriter: w, buf: &bytes.Buffer{}, logger: app.logger}
 				w = blockWriter
 				defer blockWriter.Close()
 			}
