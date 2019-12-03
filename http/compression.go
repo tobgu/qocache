@@ -2,8 +2,8 @@ package http
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/pierrec/lz4"
-	"github.com/tobgu/qframe/qerrors"
 	"github.com/tobgu/qocache/qlog"
 	"io"
 	"net/http"
@@ -32,8 +32,7 @@ func (w *lz4FrameWriter) Close() error {
 
 	_, err := lz4Writer.Write(w.buf.Bytes())
 	if err != nil {
-		err = qerrors.Propagate("LZ4 frame compress", err)
-		w.logger.Printf("Error compressing: %v", err)
+		w.logger.Printf("Error lz4 compressing: %v", err)
 		return err
 	}
 
@@ -56,8 +55,7 @@ func (w *lz4BlockWriter) Close() error {
 		dst := make([]byte, lz4.CompressBlockBound(w.buf.Len()+lz4BlockHeaderLen))
 		bufLen, err := lz4.CompressBlock(w.buf.Bytes(), dst[lz4BlockHeaderLen:], ht[:])
 		if err != nil {
-			err = qerrors.Propagate("LZ4 block compress", err)
-			w.logger.Printf("Error compressing: %v", err)
+			w.logger.Printf("Error lz4 block compressing: %v", err)
 			return err
 		}
 
@@ -67,8 +65,7 @@ func (w *lz4BlockWriter) Close() error {
 			w.ResponseWriter.Header().Del("Content-Encoding")
 			_, err := w.ResponseWriter.Write(w.buf.Bytes())
 			if err != nil {
-				err = qerrors.Propagate("LZ4 block compress", err)
-				w.logger.Printf("Error writing uncompressed: %v", err)
+				w.logger.Printf("Error writing lz4 block uncompressed: %v", err)
 				return err
 			}
 
@@ -82,8 +79,7 @@ func (w *lz4BlockWriter) Close() error {
 		storeLen(dst, uint32(w.buf.Len()))
 		_, err = w.ResponseWriter.Write(dst[:bufLen+lz4BlockHeaderLen])
 		if err != nil {
-			err = qerrors.Propagate("LZ4 block write", err)
-			w.logger.Printf("Error writing compressed: %v", err)
+			w.logger.Printf("Error writing lz4 block compressed: %v", err)
 			return err
 		}
 
@@ -123,7 +119,7 @@ func (r *lz4BlockReaderCloser) Read(b []byte) (int, error) {
 	if r.uncompressedBuf == nil {
 		l, err := r.bufLen()
 		if err != nil {
-			return 0, qerrors.Propagate("LZ4 block read buffer len", err)
+			return 0, fmt.Errorf("LZ4 block read buffer len: %w", err)
 		}
 
 		r.uncompressedBuf = make([]byte, int(l))
@@ -133,17 +129,17 @@ func (r *lz4BlockReaderCloser) Read(b []byte) (int, error) {
 			n, err := r.ReadCloser.Read(compressedBuf[bytesRead:])
 			bytesRead += n
 			if err != nil && err != io.EOF {
-				return 0, qerrors.Propagate("LZ4 block read buffer", err)
+				return 0, fmt.Errorf("LZ4 block read buffer: %w", err)
 			}
 		}
 
 		size, err := lz4.UncompressBlock(compressedBuf, r.uncompressedBuf)
 		if err != nil {
-			return 0, qerrors.Propagate("LZ4 block uncompress", err)
+			return 0, fmt.Errorf("LZ4 block uncompress: %w", err)
 		}
 
 		if size != len(r.uncompressedBuf) {
-			return 0, qerrors.New("LZ4 block uncompress len", "Unexpected uncompressed size, was: %d, expected: %d", size, len(r.uncompressedBuf))
+			return 0, fmt.Errorf("unexpected uncompressed size, was: %d, expected: %d", size, len(r.uncompressedBuf))
 		}
 	}
 
