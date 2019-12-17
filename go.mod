@@ -11,7 +11,7 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.1
 	github.com/stretchr/testify v1.3.0
-	github.com/tobgu/qframe v0.3.4
+	github.com/tobgu/qframe v0.3.5
 )
 
 go 1.13
