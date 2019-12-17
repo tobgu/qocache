@@ -24,6 +24,9 @@ type Config struct {
 	Port                 int    `mapstructure:"port"`
 	Age                  int    `mapstructure:"age"`
 	StatisticsBufferSize int    `mapstructure:"statistics-buffer-size"`
+	ReadHeaderTimeout    int    `mapstructure:"read-header-timeout"`
+	ReadTimeout          int    `mapstructure:"read-timeout"`
+	WriteTimeout         int    `mapstructure:"write-timeout"`
 	HttpPprof            bool   `mapstructure:"http-pprof"`
 	RequestLog           bool   `mapstructure:"request-log"`
 	UseSyslog            bool   `mapstructure:"use-syslog"`
@@ -45,6 +48,9 @@ func init() {
 	addIntParameter("size", "s", "Max cache size in bytes", 1000000000)
 	addIntParameter("age", "a", "Max age of cached item in seconds, 0 = never expire", 0)
 	addIntParameter("statistics-buffer-size", "b", "Number of items to store in statistics ring buffer", 1000)
+	addIntParameter("read-header-timeout", "h", "Timeout in seconds for reading HTTP request headers", 20)
+	addIntParameter("read-timeout", "r", "Timeout in seconds for reading request body", 60)
+	addIntParameter("write-timeout", "w", "Timeout in seconds for reading request body and writing response", 120)
 	addBoolParameter("http-pprof", "If HTTP pprof endpoint should be enabled or not", false)
 	addBoolParameter("request-log", "If HTTP request logging should be enabled or not", false)
 	addBoolParameter("use-syslog", "If syslog should be used or not, default false => log to stderr (DEPRECATED, use --log-destination instead)", false)

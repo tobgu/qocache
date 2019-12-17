@@ -8,6 +8,7 @@ import (
 	"github.com/tobgu/qocache/qlog"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 type Server struct {
@@ -28,8 +29,13 @@ func NewServer(c config.Config, logger qlog.Logger) (*Server, error) {
 		return nil, err
 	}
 	srv := &Server{
-		Server: http.Server{Addr: fmt.Sprintf(":%d", c.Port), Handler: app},
-		c:      c,
+		Server: http.Server{
+			Addr:              fmt.Sprintf(":%d", c.Port),
+			ReadHeaderTimeout: time.Duration(c.ReadHeaderTimeout) * time.Second,
+			ReadTimeout:       time.Duration(c.ReadTimeout) * time.Second,
+			WriteTimeout:      time.Duration(c.WriteTimeout) * time.Second,
+			Handler:           app},
+		c: c,
 	}
 
 	if c.CertFile != "" {
