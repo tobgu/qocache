@@ -18,7 +18,7 @@ type Server struct {
 
 func (s *Server) ListAndServeAsConfigured() error {
 	if s.TLSConfig != nil {
-		return s.ListenAndServeTLS(s.c.CertFile, s.c.CertFile)
+		return s.ListenAndServeTLS(s.c.CertFile, s.c.KeyFile)
 	}
 	return s.ListenAndServe()
 }

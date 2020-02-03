@@ -16,7 +16,7 @@ import (
 
 func TestTLSServer(t *testing.T) {
 	// Test connecting to TLS server with valid client side cert.
-	c := config.Config{CAFile: "../tls/ca.pem", CertFile: "../tls/host.pem", Port: 8888}
+	c := config.Config{CAFile: "../tls/ca.pem", CertFile: "../tls/host.pem", KeyFile: "../tls/host-key.pem", Port: 8888}
 	logger := log.New(os.Stderr, "qocache-test", log.LstdFlags)
 	srv, err := qhttp.NewServer(c, logger)
 	assert.Nil(t, err)
@@ -57,7 +57,7 @@ func newClient(t *testing.T, withClientCert bool) *http.Client {
 
 	var clientCerts []tls.Certificate
 	if withClientCert {
-		cert, err := tls.LoadX509KeyPair("../tls/host.pem", "../tls/host.pem")
+		cert, err := tls.LoadX509KeyPair("../tls/host.pem", "../tls/host-key.pem")
 		if err != nil {
 			t.Fatalf("Unable to load cert: %v", err)
 		}

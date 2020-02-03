@@ -33,9 +33,8 @@ type Config struct {
 	LogDestination       string `mapstructure:"log-destination"`
 	CAFile               string `mapstructure:"ca-file"`
 	CertFile             string `mapstructure:"cert-file"`
-	// TODO: Do we need to add an optional parameter to specify server private key for cases when not colocated with cert?
-
-	BasicAuth string `mapstructure:"basic-auth"`
+	KeyFile              string `mapstructure:"key-file"`
+	BasicAuth            string `mapstructure:"basic-auth"`
 }
 
 func init() {
@@ -56,7 +55,8 @@ func init() {
 	addBoolParameter("use-syslog", "If syslog should be used or not, default false => log to stderr (DEPRECATED, use --log-destination instead)", false)
 	addStringParameter("log-destination", "Destination for logs, stderr/stdout/syslog (default stderr)", "stderr")
 	addStringParameter("ca-file", "Path to CA certificate authority file, if passed in it will be used to verify client certificates", "")
-	addStringParameter("cert-file", "Path to file containing certificate and private key for server side TLS", "")
+	addStringParameter("cert-file", "Path to file containing certificate and optionally private key for server side TLS", "")
+	addStringParameter("key-file", "Path to file containing private key for server side TLS, if not set the key is assumed to be present in cert-file", "")
 }
 
 func bindEnv(name string) {
@@ -97,5 +97,9 @@ func GetConfig() (Config, error) {
 	}
 
 	err = viper.Unmarshal(&c)
+	if c.KeyFile == "" {
+		c.KeyFile = c.CertFile
+	}
+
 	return c, err
 }
