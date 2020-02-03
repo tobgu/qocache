@@ -192,9 +192,10 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 	if !ok {
 		expectedEncoding = headers["Accept-Encoding"]
 	}
+	encoding := rr.Header().Get("Content-Encoding")
 	if expectedEncoding == "lz4-frame" {
-		if rr.Header().Get("Content-Encoding") != "lz4-frame" {
-			c.t.Fatal("Expected content to be lz4-frame encoded, was not")
+		if encoding != "lz4-frame" {
+			c.t.Fatalf("Expected content to be lz4-frame encoded, was '%s'\n", encoding)
 		}
 
 		lz4Reader := lz4.NewReader(rr.Body)
@@ -206,8 +207,8 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 
 		rr.Body = buf
 	} else if expectedEncoding == "lz4" {
-		if rr.Header().Get("Content-Encoding") != "lz4" {
-			c.t.Fatal("Expected content to be lz4 encoded, was not")
+		if encoding != "lz4" {
+			c.t.Fatalf("Expected content to be lz4 encoded, was '%s'\n", encoding)
 		}
 
 		srcBuf, err := ioutil.ReadAll(rr.Body)
@@ -378,7 +379,10 @@ func TestInsertAndQueryCsvLz4Compression(t *testing.T) {
 			inputEncoding:    "lz4",
 			acceptEncoding:   "lz4",
 			expectedEncoding: "lz4",
-			input:            []TestData{{S: "Foo", I: 123, F: 1.5, B: true}, {S: "Foo", I: 123, F: 1.5, B: true}},
+			input: []TestData{
+				{S: "Foo", I: 123, F: 1.5, B: true},
+				{S: "Foo", I: 123, F: 1.5, B: true},
+				{S: "Foo", I: 123, F: 1.5, B: true}},
 		},
 	}
 
