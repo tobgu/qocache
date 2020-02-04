@@ -40,6 +40,10 @@ func main() {
 		close(idleConnsClosed)
 	}()
 
+	if c.HTTPStatusPort != 0 {
+		qhttp.StartHTTPStatusEndpoint(c, logger)
+	}
+
 	err = srv.ListAndServeAsConfigured()
 	if err == http.ErrServerClosed {
 		logger.Printf("Starting server shutdown...")

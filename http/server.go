@@ -23,21 +23,22 @@ func (s *Server) ListAndServeAsConfigured() error {
 	return s.ListenAndServe()
 }
 
+func newHTTPServer(c config.Config, port int, handler http.Handler) http.Server {
+	return http.Server{
+		Addr:              fmt.Sprintf(":%d", port),
+		ReadHeaderTimeout: time.Duration(c.ReadHeaderTimeout) * time.Second,
+		ReadTimeout:       time.Duration(c.ReadTimeout) * time.Second,
+		WriteTimeout:      time.Duration(c.WriteTimeout) * time.Second,
+		Handler:           handler}
+}
+
 func NewServer(c config.Config, logger qlog.Logger) (*Server, error) {
 	app, err := Application(c, logger)
 	if err != nil {
 		return nil, err
 	}
-	srv := &Server{
-		Server: http.Server{
-			Addr:              fmt.Sprintf(":%d", c.Port),
-			ReadHeaderTimeout: time.Duration(c.ReadHeaderTimeout) * time.Second,
-			ReadTimeout:       time.Duration(c.ReadTimeout) * time.Second,
-			WriteTimeout:      time.Duration(c.WriteTimeout) * time.Second,
-			Handler:           app},
-		c: c,
-	}
 
+	srv := &Server{Server: newHTTPServer(c, c.Port, app), c: c}
 	if c.CertFile != "" {
 		srv.TLSConfig, err = newTLSConfig(c, logger)
 		if err != nil {

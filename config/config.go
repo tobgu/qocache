@@ -22,6 +22,7 @@ import (
 type Config struct {
 	Size                 int    `mapstructure:"size"`
 	Port                 int    `mapstructure:"port"`
+	HTTPStatusPort       int    `mapstructure:"http-status-port"`
 	Age                  int    `mapstructure:"age"`
 	StatisticsBufferSize int    `mapstructure:"statistics-buffer-size"`
 	ReadHeaderTimeout    int    `mapstructure:"read-header-timeout"`
@@ -44,6 +45,7 @@ func init() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 	addIntParameter("port", "p", "Port to bind to", 8888)
+	addIntParameter("http-status-port", "t", "If set a non-TLS server will be started in addition to qocache which only serves /status, this can be used for health checks and similar", 0)
 	addIntParameter("size", "s", "Max cache size in bytes", 1000000000)
 	addIntParameter("age", "a", "Max age of cached item in seconds, 0 = never expire", 0)
 	addIntParameter("statistics-buffer-size", "b", "Number of items to store in statistics ring buffer", 1000)
