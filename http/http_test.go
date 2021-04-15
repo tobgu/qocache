@@ -156,7 +156,7 @@ func (c *testCache) insertJson(key string, headers map[string]string, input inte
 		headers["Content-Type"] = "application/json"
 	}
 
-	rr := c.insertDataset("FOO", headers, b)
+	rr := c.insertDataset(key, headers, b)
 
 	// Check the status code is what we expect.
 	if rr.Code != http.StatusCreated {
@@ -445,6 +445,15 @@ type keyValProperty struct {
 	expected interface{}
 }
 
+func containsNilValues(properties []keyValProperty) bool {
+	for _, p := range properties {
+		if p.value == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func TestInsertCsvWithTypes(t *testing.T) {
 	cache := newTestCache(t)
 	input := []TestData{{S: "Foo", I: 123, F: 1.5, B: true}}
@@ -491,11 +500,19 @@ func TestStandinColumns(t *testing.T) {
 
 		// Stand in from int constant, expect float because of Go JSON decoding in test case, leave like this for now.
 		{{"X", 2, 2.0}},
+
+		// Stand in from nil constant.
+		{{"X", nil, nil}},
 	}
 
 	for _, format := range []string{"kv", "json"} {
 		for _, tc := range cases {
-			t.Run(fmt.Sprintf("Insert %s", toKeyVals(tc, format)), func(t *testing.T) {
+			if format == "kv" && containsNilValues(tc) {
+				// Nil values not supported with in kv format
+				continue
+			}
+
+			t.Run(fmt.Sprintf("Insert %s %s", format, toKeyVals(tc, format)), func(t *testing.T) {
 				cache.insertCsv("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, input)
 				output := make([]map[string]interface{}, 0)
 				cache.queryJson("FOO", nil, "{}", "GET", &output)
@@ -505,7 +522,7 @@ func TestStandinColumns(t *testing.T) {
 				}
 			})
 
-			t.Run(fmt.Sprintf("Query %s", toKeyVals(tc, format)), func(t *testing.T) {
+			t.Run(fmt.Sprintf("Query %s %s", format, toKeyVals(tc, format)), func(t *testing.T) {
 				cache.insertCsv("FOO", nil, input)
 				output := make([]map[string]interface{}, 0)
 				cache.queryJson("FOO", map[string]string{"X-QCache-stand-in-columns": toKeyVals(tc, format)}, "{}", "GET", &output)
