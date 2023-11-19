@@ -1,4 +1,4 @@
-FROM golang:1.13.4
+FROM golang:1.21.4
 
 WORKDIR /qocache
 COPY . .
