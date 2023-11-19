@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 )
@@ -22,7 +22,7 @@ func main() {
 			panic(resp.StatusCode)
 		}
 
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		panicOnErr(err)
 
 		err = resp.Body.Close()

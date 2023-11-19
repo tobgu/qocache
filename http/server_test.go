@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tobgu/qocache/config"
 	qhttp "github.com/tobgu/qocache/http"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -65,7 +64,7 @@ func newClient(t *testing.T, withClientCert bool) *http.Client {
 	}
 
 	// Load our CA certificate
-	clientCACert, err := ioutil.ReadFile("../tls/ca.pem")
+	clientCACert, err := os.ReadFile("../tls/ca.pem")
 	if err != nil {
 		t.Fatalf("Unable to open cert: %v", err)
 	}
@@ -77,7 +76,6 @@ func newClient(t *testing.T, withClientCert bool) *http.Client {
 		Certificates: clientCerts,
 		RootCAs:      clientCertPool,
 	}
-	tlsConfig.BuildNameToCertificate()
 
 	return &http.Client{Transport: &http.Transport{TLSClientConfig: tlsConfig}}
 }

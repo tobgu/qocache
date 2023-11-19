@@ -14,7 +14,6 @@ import (
 	"github.com/tobgu/qocache/qlog"
 	"github.com/tobgu/qocache/statistics"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -83,7 +82,7 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 
 		go func() {
 			defer pWriter.Close()
-			buf, err := ioutil.ReadAll(origBody)
+			buf, err := io.ReadAll(origBody)
 			if err != nil {
 				c.t.Fatalf("Error reading data for lz4 frame compression")
 			}
@@ -92,7 +91,7 @@ func (c *testCache) insertDataset(key string, headers map[string]string, body io
 			assertNotErr(c.t, lz4Writer.Close())
 		}()
 	} else if headers["Content-Encoding"] == "lz4" {
-		srcBuf, err := ioutil.ReadAll(body)
+		srcBuf, err := io.ReadAll(body)
 		if err != nil {
 			c.t.Fatalf("Error writing reading data for lz4 block compression")
 		}
@@ -211,7 +210,7 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 			c.t.Fatalf("Expected content to be lz4 encoded, was '%s'\n", encoding)
 		}
 
-		srcBuf, err := ioutil.ReadAll(rr.Body)
+		srcBuf, err := io.ReadAll(rr.Body)
 		if err != nil {
 			c.t.Fatal(err)
 		}
@@ -228,7 +227,7 @@ func (c *testCache) queryDataset(key string, headers map[string]string, q, metho
 }
 
 func (c *testCache) statistics() statistics.StatisticsData {
-	req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/statistics"), nil)
+	req, err := http.NewRequest("GET", "/qocache/statistics", nil)
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -250,7 +249,7 @@ func (c *testCache) statistics() statistics.StatisticsData {
 }
 
 func (c *testCache) status() {
-	req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/status"), nil)
+	req, err := http.NewRequest("GET", "/qocache/status", nil)
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -932,7 +931,7 @@ func TestBasicAuth(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", fmt.Sprintf("/qocache/status"), nil)
+			req, err := http.NewRequest("GET", "/qocache/status", nil)
 			if err != nil {
 				c.t.Fatal(err)
 			}

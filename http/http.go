@@ -14,7 +14,7 @@ import (
 	"github.com/tobgu/qocache/query"
 	"github.com/tobgu/qocache/statistics"
 	qostrings "github.com/tobgu/qocache/strings"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/pprof"
 	"regexp"
@@ -292,7 +292,7 @@ func (a *application) queryDatasetPost(w http.ResponseWriter, r *http.Request) {
 	// The query is located in the body
 	a.queryDataset(w, r, func(r *http.Request) (string, error) {
 		defer r.Body.Close()
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			return "", err
 		}

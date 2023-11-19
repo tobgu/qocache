@@ -6,7 +6,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -38,10 +38,10 @@ func main() {
 		}
 
 		if resp.StatusCode != http.StatusCreated {
-			log.Fatal(fmt.Sprintf("Code: %s", resp.Status))
+			log.Fatalf("Code: %s", resp.Status)
 		}
 
-		_, err = ioutil.ReadAll(resp.Body)
+		_, err = io.ReadAll(resp.Body)
 		if err != nil {
 			log.Fatal(err)
 		}

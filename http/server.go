@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/tobgu/qocache/config"
 	"github.com/tobgu/qocache/qlog"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -53,9 +53,8 @@ func NewServer(c config.Config, logger qlog.Logger) (*Server, error) {
 func newTLSConfig(c config.Config, logger qlog.Logger) (*tls.Config, error) {
 	logger.Printf("Using server side TLS")
 	cfg := &tls.Config{
-		MinVersion:               tls.VersionTLS12,
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
+		MinVersion:       tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
@@ -66,7 +65,7 @@ func newTLSConfig(c config.Config, logger qlog.Logger) (*tls.Config, error) {
 
 	if c.CAFile != "" {
 		logger.Printf("Verifying client certificates")
-		clientCACert, err := ioutil.ReadFile(c.CAFile)
+		clientCACert, err := os.ReadFile(c.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to open CA cert: %v", err)
 		}
